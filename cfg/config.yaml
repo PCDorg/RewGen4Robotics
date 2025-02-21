@@ -1,0 +1,10 @@
+
+model : gpt-4o
+tempurature : 1.0
+task : Robodog_Walk 
+env : robodog_env
+task_description : to make our quadruped robot dog walk to a target postion.
+
+
+
+

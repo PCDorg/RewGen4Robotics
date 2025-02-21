@@ -1,0 +1,2 @@
+[2025-02-21 19:47:23,302][root][INFO] - Generating samples with gpt-4o
+[2025-02-21 19:47:32,872][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"

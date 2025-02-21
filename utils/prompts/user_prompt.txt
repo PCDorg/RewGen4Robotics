@@ -1,0 +1,1 @@
+ Write a reward function for the following task: {task_description}.
