@@ -2,7 +2,7 @@
 import os
 import openai 
 import logging 
-from utils import file_to_string 
+from utils import file_to_string, Conversation  
 
 import hydra 
 
@@ -44,7 +44,18 @@ def main(cfg):
         )
     except Exception as e : 
         logging.exception("Attempt failed with an error")
-    print(response.choices[0].message.content)     
+    #print(response.choices[0].message.content)   
+    
+    # save the response to a file
+    content = response.choices[0].message.content
+    code_filename = "/home/ken2/PCD/results/code.txt"
+    text_filename = "/home/ken2/PCD/results/text.txt"
+    Conversation.save_content(content, code_filename, text_filename)
+    logging.info(f"Content saved to {code_filename} and {text_filename}")
+
+
+
+    
 
 
 
