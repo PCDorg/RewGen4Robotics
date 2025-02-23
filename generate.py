@@ -2,7 +2,7 @@
 import os
 import openai 
 import logging 
-from utils import file_to_string, Conversation  
+from utils import file, Conversation  
 
 import hydra 
 
@@ -14,14 +14,16 @@ def main(cfg):
 
     task=cfg.task
     task_description= cfg.task_description
-    
+
     #loading the prompts
-    prompt_path= "/home/ken2/PCD/utils/prompts"
+    workspace_dir = str(os.getcwd())
+
+    prompt_path= f"{workspace_dir}/utils/prompts"
     
-    system_prompt = file_to_string.file_to_string(f'{prompt_path}/system_prompt.txt')
-    user_prompt = file_to_string.file_to_string(f'{prompt_path}/user_prompt.txt')
-    reward_signature = file_to_string.file_to_string(f'{prompt_path}/reward_signature.txt')
-    code_output_tip = file_to_string.file_to_string(f'{prompt_path}/code_output_tip.txt')
+    system_prompt = file.file_to_string(f'{prompt_path}/system_prompt.txt')
+    user_prompt = file.file_to_string(f'{prompt_path}/user_prompt.txt')
+    reward_signature = file.file_to_string(f'{prompt_path}/reward_signature.txt')
+    code_output_tip = file.file_to_string(f'{prompt_path}/code_output_tip.txt')
     
 
 
@@ -49,8 +51,8 @@ def main(cfg):
     
     # save the response to a file
     content = response.choices[0].message.content
-    code_filename = "/home/ken2/PCD/results/code.txt"
-    text_filename = "/home/ken2/PCD/results/text.txt"
+    text_filename = f"{workspace_dir}/results/text.txt"
+    code_filename = f"{workspace_dir}/results/code.txt"
     Conversation.save_content(content, code_filename, text_filename)
     logging.info(f"Content saved to {code_filename} and {text_filename}")
 
