@@ -1,0 +1,1 @@
+This project explores the integration of Large Language Models (LLMs) with Reinforcement Learning (RL) for robotics,. The goal is to leverage LLMs for reward shaping and policy optimization in robotic simulations,
