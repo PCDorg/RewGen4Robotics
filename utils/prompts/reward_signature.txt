@@ -1,4 +1,13 @@
-@torch.jit.script
-def compute_reward(object_pos: torch.Tensor, goal_pos: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-    ...
-    return reward, {}
+def custom_reward_function(obs, action, done , env):
+    """
+    Reward function for AntMaze-v4.
+
+    Args:
+        obs (np.array): Agent's observation including position.
+        action (np.array): The action taken at the current step.
+        done (bool): Whether the episode has ended.
+        env : 
+
+    Returns:
+        float: The computed reward.
+    """

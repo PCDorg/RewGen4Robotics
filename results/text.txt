@@ -1,8 +1,12 @@
 ```
 
-This reward function focuses on:
-- **Distance**: Encourages the robot to minimize the distance to the target position.
-- **Velocity**: Rewards movement towards the target with positive velocity.
-- **Stability**: Penalizes deviations in velocity to encourage stable walking.
+### Explanation:
+1. **Distance Reward:** The function calculates the distance reward based on how much the ant has reduced its distance to the goal compared to its previous step. This motivates the ant to move towards the goal.
 
-Each component is transformed using torch.exp to normalize the reward values within a range, with specific temperature parameters tailored for each component. This transformation ensures that the reward function remains effective across different scales of measurement.
+2. **Action Penalty:** The function introduces a penalty proportional to the squared sum of the actions (torques applied), which discourages excessive or inefficient movements.
+
+3. **Goal Bonus:** If the ant gets very close to the target (within a threshold distance), it receives a significant bonus, promoting reaching the goal as the primary objective.
+
+4. **Premature End Penalty:** The function penalizes the episode's completion if the ant has not reached the goal, discouraging the ant from remaining idle or getting stuck.
+
+This reward function balances the need to reach the target efficiently with the desire to use energy wisely.

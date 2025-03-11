@@ -1,0 +1,1 @@
+Iteration 1: Average reward = -3226.06. Reward function performance is below target. It needs to better encourage efficient movement toward the goal and penalize unnecessary actions.

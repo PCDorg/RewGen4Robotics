@@ -1,0 +1,6 @@
+model: gpt-4o
+temperature: 1.0
+task: Ant_
+env: AntMaze-v4
+task_description: To make the Ant robot navigate through the maze and reach the target
+  position efficiently.
