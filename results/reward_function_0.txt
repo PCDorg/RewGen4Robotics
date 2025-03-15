@@ -1,45 +1,40 @@
-Here is my proposed reward function:
-
-```python
 import numpy as np
 
 def custom_reward_function(obs, action, done, env):
-    # Extracting the actual observation array.
-    obs = obs.get('observation', obs)
+    # Check if obs is a dictionary and extract the observation array
+    if type(obs) == dict:
+        obs = obs.get('observation', obs)
     
-    # Access the goal position
-    goal = env.unwrapped.goal
-
-    # Assume the first two elements correspond to the ant's x and y positions
-    ant_position = np.array(obs[:2])
+    # Extract the positional and velocity information
+    ant_x, ant_y = obs[:2]
+    ant_vx, ant_vy = obs[2:4]
+    # Extract the goal position from the environment
+    goal_x, goal_y = env.unwrapped.goal
+   
+    # Calculate distance to the goal
+    dist_to_goal = np.sqrt(np.square(ant_x - goal_x) + np.square(ant_y - goal_y))
     
-    # The next two correspond to the velocities.
-    ant_velocity = np.array(obs[2:4])
-
-    # Compute the L2 norm (distance) to the goal.
-    goal_distance = np.linalg.norm(ant_position - goal)
+    # Penalize the robot for being far from the goal
+    distance_penalty = -dist_to_goal
     
-    # Reward should be higher for smaller distance to the goal.
-    reward_goal = -goal_distance
+    # Encourage the robot to move by rewarding it for velocity towards the goal
+    velocity_reward = np.dot([ant_vx, ant_vy], [goal_x - ant_x, goal_y - ant_y])
+    # Encourage the robot to be efficient by penalizing high action values
+    efficiency_penalty = -np.square(action).sum()
     
-    # Punish excessive joint torques
-    reward_torque = -np.square(action).sum()
+    # Define constant penalty and bonus values
+    done_penalty = -100.0
+    goal_bonus = 100.0
 
-    # The ant should move towards the goal.
-    reward_direction = np.dot(ant_velocity, (goal - ant_position))
+    # If the episode ends up without reaching the goal, penalize it
+    if done and dist_to_goal > 1.0:
+        return distance_penalty + done_penalty
+
+    # If the goal is reached, provide a large bonus
+    if dist_to_goal < 1.0:
+        return goal_bonus
+
+    # Add up all the components of the reward
+    reward = distance_penalty + velocity_reward + efficiency_penalty
     
-    # Combine the three parts
-    reward = reward_goal + 0.1*reward_direction + 0.01*reward_torque
-
-    # If the episode ends before reaching the goal, apply a penalty
-    if done and goal_distance > 0.05:  # 0.05 can be adjusted depending on goal size
-        reward -= 10.0
-
-    # If the ant reaches the goal, get a large bonus
-    if goal_distance < 0.05:  # 0.05 can be adjusted depending on goal size
-        reward += 50.0
-
     return reward
-```
-
-This function promotes three behaviors: moving towards the goal (higher reward for smaller goal distance and ant moving towards the goal direction), efficient movement (punish wasteful joint movements), and goal completion (bonus for reaching the goal, penalty for ending too early). The exact coefficients for punishing joint movement and rewarding goal distance can be tuned depending on your specific needs.

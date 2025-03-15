@@ -7,3 +7,4 @@
 # - Assume the first two elements of the observation array correspond to the ant's x and y positions,
 #   and the next two correspond to the velocities.
 # - Provide a bonus when the ant is within a threshold of the goal, and penalize if the episode ends before reaching the goal.
+# -the reward function  should return only the reward (a float). This is causing the error because stable_baselines3 expects the reward to be a single number, not a tuple.

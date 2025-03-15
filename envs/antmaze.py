@@ -2,6 +2,7 @@
 import gymnasium as gym
 import gymnasium_robotics 
 import importlib.util
+import glfw 
 
 def load_reward_function(py_reward_path):
     """Dynamically load the reward function from a given .py file."""
@@ -22,8 +23,12 @@ class CustomAntMazeEnv(gym.Wrapper):
         custom_reward = self.custom_reward_function(next_obs, action, terminated, self.env)
         return next_obs, custom_reward, terminated, truncated, info
 
+def initialize_glfw():
+    if not glfw.init():
+        raise Exception("GLFW could not be initialized")
 def make_custom_antmaze(py_reward_path):
     """Creates the AntMaze environment with the custom reward function loaded from py_reward_path."""
+    initialize_glfw()
     env = gym.make("AntMaze_UMaze-v5", render_mode="human")
     reward_function = load_reward_function(py_reward_path)
     return CustomAntMazeEnv(env, reward_function)

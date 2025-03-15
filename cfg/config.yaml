@@ -1,9 +1,9 @@
 
 iterations: 5               # Number of iterative cycles for reward generation
-total_timesteps: 10000      # PPO training timesteps for each iteration (and for training script)
+total_timesteps: 1000000      # PPO training timesteps for each iteration (and for training script)
 eval_episodes: 5            # Number of evaluation episodes during reward generation
 target_reward: 50.0         # Target average reward to aim for during reward generation
 model: "gpt-4"              # LLM model to use
 task_description: "AntMaze - Teach the quadruped robot to reach a target position efficiently."
 selected_reward_function: "reward_function_5.py"  # Specify which reward function file to use for training
-final_training: true       
+final_training: false       
