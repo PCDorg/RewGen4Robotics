@@ -1,2 +1,4 @@
 openai
 hydra-core 
+stable_baselines3
+gymnasium

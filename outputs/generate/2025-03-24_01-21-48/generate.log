@@ -1,0 +1,28 @@
+[2025-03-24 01:21:48,810][root][INFO] - Using LLM: gpt-4o
+[2025-03-24 01:21:48,810][root][INFO] - Task: walker2dEnv
+[2025-03-24 01:21:48,810][root][INFO] - Task description: The walker is a two-dimensional two-legged figure that consist of four main body parts - a single torso at the top (with the two legs splitting after the torso), two thighs in the middle below the torso, two legs in the bottom below the thighs, and two feet attached to the legs on which the entire body rests. The goal is to make coordinate both sets of feet, legs, and thighs to move in the forward (right) direction by applying torques on the six hinges connecting the six body parts.
+[2025-03-24 01:21:48,810][root][INFO] - Workspace: /home/bechir/RewGen4Robotic
+[2025-03-24 01:21:48,810][root][INFO] - Project Root: /home/bechir/RewGen4Robotic
+[2025-03-24 01:21:48,810][root][INFO] - task_obs_file : /home/bechir/RewGen4Robotic/model_test_env/walker2d_v5_obs.py
+[2025-03-24 01:21:48,810][root][INFO] - Generating samples with gpt-4o
+[2025-03-24 01:21:48,811][root][INFO] - Iteration 0: Generating 3 samples with gpt-4o
+[2025-03-24 01:21:48,811][root][INFO] - Attempt 1 failed with error: 
+
+You tried to access openai.ChatCompletion, but this is no longer supported in openai>=1.0.0 - see the README at https://github.com/openai/openai-python for the API.
+
+You can run `openai migrate` to automatically upgrade your codebase to use the 1.0.0 interface. 
+
+Alternatively, you can pin your installation to the old version, e.g. `pip install openai==0.28`
+
+A detailed migration guide is available here: https://github.com/openai/openai-python/discussions/742
+
+[2025-03-24 01:21:49,812][root][INFO] - Attempt 2 failed with error: 
+
+You tried to access openai.ChatCompletion, but this is no longer supported in openai>=1.0.0 - see the README at https://github.com/openai/openai-python for the API.
+
+You can run `openai migrate` to automatically upgrade your codebase to use the 1.0.0 interface. 
+
+Alternatively, you can pin your installation to the old version, e.g. `pip install openai==0.28`
+
+A detailed migration guide is available here: https://github.com/openai/openai-python/discussions/742
+

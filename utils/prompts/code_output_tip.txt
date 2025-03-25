@@ -4,7 +4,39 @@ The output of the reward function should consist of two items:
 The code output should be formatted as a python code string: "```python ... ```".
 
 Some helpful tips for writing the reward function code:
-    (1) You may find it helpful to normalize the reward to a fixed range by applying transformations like torch.exp to the overall reward or its components
+    (1) dont use torch library use instead numpy !!
     (2) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable
-    (3) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor
+    (3) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as np.array
     (4) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+    (5) Use only attributes specified in the environment!
+    (6) Respect the reward_function signature and dont change input variables.
+
+Helpful tip about observation :
+    - self._get_obs() return : a array of 17 components and a set of two values "x_position" and "z_distance_from_origin" 
+    Explanaition of output :
+
+    | Num | Observation                                        | Type (Unit)              |
+    | --- | -------------------------------------------------- |
+    | 0   | z-coordinate of the torso (height of Walker2d)     | position (m)             |
+    | 1   | angle of the torso                                 | angle (rad)              |
+    | 2   | angle of the thigh joint                           | angle (rad)              |
+    | 3   | angle of the leg joint                             | angle (rad)              |
+    | 4   | angle of the foot joint                            | angle (rad)              |
+    | 5   | angle of the left thigh joint                      | angle (rad)              |
+    | 6   | angle of the left leg joint                        | angle (rad)              |
+    | 7   | angle of the left foot joint                       | angle (rad)              |
+    | 8   | velocity of the x-coordinate of the torso          | velocity (m/s)           |
+    | 9   | velocity of the z-coordinate (height) of the torso | velocity (m/s)           |
+    | 10  | angular velocity of the angle of the torso         | angular velocity (rad/s) |
+    | 11  | angular velocity of the thigh hinge                | angular velocity (rad/s) |
+    | 12  | angular velocity of the leg hinge                  | angular velocity (rad/s) |
+    | 13  | angular velocity of the foot hinge                 | angular velocity (rad/s) |
+    | 14  | angular velocity of the thigh hinge                | angular velocity (rad/s) |
+    | 15  | angular velocity of the leg hinge                  | angular velocity (rad/s) |
+    | 16  | angular velocity of the foot hinge                 | angular velocity (rad/s) |
+    | excluded | x-coordinate of the torso        
+    exemple output of the _get_obs function : (array([ 1.25058082e+00, -2.97289137e-03, -2.52310225e-03,  2.61270758e-03,
+       -2.97618055e-03,  8.12776083e-04,  3.05123238e-03, -2.91539969e-03,
+       -4.33196237e-03, -4.77280066e-03,  1.43559329e-03,  2.37136838e-03,
+       -4.14854802e-03,  4.31438954e-03, -1.46865697e-03,  3.70031103e-03,
+        4.00085256e-03]), {'x_position': -0.0013976251957168151, 'z_distance_from_origin': 0.0005808233269632979})             
