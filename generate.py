@@ -183,12 +183,10 @@ def main(cfg):
                 # Instantiate environment
                 env = env_module.Walker2dEnv()
                 env.reset()
-                # Training the environment 
+                # Training the environment
                 trainer = train.TrainingManager(env=env)
                 model = trainer.run()
-                print("completion succeded")      
-
-
+                print("completion succeded")     
 
 if __name__ == "__main__":
     main()

@@ -1,32 +1,31 @@
 def reward_function(self, x_velocity, observation, action):
-    # Extract relevant components of the observation
-    z_height = observation[0]  # z-coordinate of the torso
-    torso_angle = observation[1]  # angle of the torso
-    x_velocity_torso = observation[8]  # velocity of the x-coordinate of the torso
+    # Extract necessary components from the observation
+    z_coordinate, torso_angle = observation[0], observation[1]
+    velocities = observation[8:11]  # x_velocity, z_velocity, torso_angular_velocity
     
-    # Reward for moving forward
-    forward_reward = x_velocity_torso
+    # Parameters for transformations
+    velocity_temperature = 1.0
+    stability_temperature = 1.0
+    efficiency_temperature = 1.0
 
-    # Reward for maintaining a reasonable height
-    target_height = 1.2
-    height_penalty = -abs(z_height - target_height)
+    # Velocity Reward: Encourage forward movement
+    velocity_reward = np.exp(x_velocity / velocity_temperature)
     
-    # Reward for maintaining stability (keeping the torso upright)
-    stability_penalty = -abs(torso_angle)
-
-    # Minimize excessive torques to promote smooth movement
-    torque_penalty_factor = 0.001
-    torque_penalty = -torque_penalty_factor * np.sum(np.square(action))
-
-    # Combining the reward components
-    total_reward = forward_reward + height_penalty + stability_penalty + torque_penalty
-
-    # Creating a dictionary for individual components
+    # Stability Reward: Encourage maintaining a certain height and limiting torso angle to ensure stability
+    stability_reward = np.exp(-(np.abs(z_coordinate - 1.2) + np.abs(torso_angle)) / stability_temperature)
+    
+    # Efficiency Reward: Encourage minimal action magnitude for energy efficiency
+    efficiency_reward = np.exp(-np.linalg.norm(action) / efficiency_temperature)
+    
+    # Total Reward
+    total_reward = velocity_reward + stability_reward + efficiency_reward
+    
+    # Reward Info
     reward_info = {
-        'forward_reward': forward_reward,
-        'height_penalty': height_penalty,
-        'stability_penalty': stability_penalty,
-        'torque_penalty': torque_penalty
+        "velocity_reward": velocity_reward,
+        "stability_reward": stability_reward,
+        "efficiency_reward": efficiency_reward,
+        "total_reward": total_reward
     }
-
+    
     return total_reward, reward_info
