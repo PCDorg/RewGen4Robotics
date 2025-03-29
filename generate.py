@@ -61,9 +61,9 @@ def main(cfg):
     user_prompt = file_to_string(f'{prompt_path}/user_prompt.txt')
     reward_signature = file_to_string(f'{prompt_path}/reward_signature.txt')
     code_output_tip = file_to_string(f'{prompt_path}/code_output_tip.txt')
-    #code_feedback = file_to_string(f'{prompt_path}/code_feedback.txt')
-    #policy_feedback = file_to_string(f'{prompt_path}/policy_feedback.txt')
-    #execution_error_feedback = file_to_string(f'{prompt_path}/execution_error_feedback.txt')
+    code_feedback = file_to_string(f'{prompt_path}/code_feedback.txt')
+    policy_feedback = file_to_string(f'{prompt_path}/policy_feedback.txt')
+    execution_error_feedback = file_to_string(f'{prompt_path}/execution_error_feedback.txt')
 
     system_prompt = system_prompt.format(task_reward_signature_string=reward_signature) + code_output_tip
     user_prompt = user_prompt.format(task_description=task_description, task_obs_code_string=task_file)
@@ -146,6 +146,7 @@ def main(cfg):
                 except Exception as e:
                     logging.info(f"Iteration {iter}: Code Run {response_id} cannot parse function signature!")
                     continue
+
                 code_runs.append(code_string)
 
                 reward_signature = [
@@ -186,7 +187,11 @@ def main(cfg):
                 # Training the environment
                 trainer = train.TrainingManager(env=env)
                 model = trainer.run()
-                print("completion succeded")     
+                print("completion succeded") 
+
+                rl_runs.append(env_iter_file)  
+            
+        
 
 if __name__ == "__main__":
     main()
