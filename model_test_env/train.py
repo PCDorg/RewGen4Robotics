@@ -1,7 +1,7 @@
 import gymnasium as gym
 import gymnasium_robotics
 from results.tasks import *
-
+import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -56,12 +56,14 @@ class TrainingManager :
 
         self.model_save_path = f"{root_dir}/models/{self.iter_info}.zip"
 
+        # Ensure the save directory exists
+        os.makedirs(os.path.dirname(self.model_save_path), exist_ok=True)
+
+    def run(self ) :
         
+        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= self.iter_info)
 
-    def run(self, tb_log_name = None ) :
-        tb_log_name = tb_log_name or self.tb_logs_fullpath
-        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= tb_log_name)
-
+        self.model.save(path=self.model_save_path)
         return self.model
     def get_logs_path(self):
         return self.tb_logs_fullpath
