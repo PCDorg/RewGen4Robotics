@@ -5,7 +5,7 @@ import logging
 import matplotlib.pyplot as plt
 import os
 from openai import OpenAI
-
+ 
 client = OpenAI(api_key=os.getenv("OPEN_AI_KEY"))
 import re
 import subprocess
@@ -73,14 +73,15 @@ def main(cfg):
 
     task_code_string = task_code_string.replace(task, task+suffix)
 
+    max_rewards = list()
+    best_code_paths = list()
+
+
     #create_task(OUTPUTS_DIR, cfg.env.task, cfg.env.env_name, suffix)
     DUMMY_FAILURE = -10000.
-    max_successes = []
-    max_successes_reward_correlation = []
     execute_rates = []
     best_code_paths = []
-    max_success_overall = DUMMY_FAILURE
-    max_success_reward_correlation_overall = DUMMY_FAILURE
+    max_reward_overall = DUMMY_FAILURE
     max_reward_code_path = None 
 
     for iter in range(cfg.iteration) :
@@ -125,7 +126,11 @@ def main(cfg):
 
         code_runs = [] 
         rl_runs = []
+        mean_reward_per_sample = []
         # logging.info(responses[0])
+        code_feedbacks = []
+        contents = []
+        code_paths = []
         for response_id in range(cfg.sample):
 
                 response_cur = responses[response_id].message.content
@@ -174,9 +179,11 @@ def main(cfg):
                     file.writelines(code_string + '\n')
 
                 # Copy the generated environment code to hydra output directory for bookkeeping
-                shutil.copy(output_file, f"{OUTPUTS_DIR}/tasks/env_iter{iter}_response{response_id}.py")
+                full_file_path = f"{OUTPUTS_DIR}/tasks/env_iter{iter}_response{response_id}.py"
+                shutil.copy(output_file, full_file_path)
 
                 env_iter_file = f'results/tasks/env_iter{iter}_response{response_id}.py'
+                
                 # convert file path to module name
                 module_name = env_iter_file.replace('/','.').replace('.py','').lstrip()
                 env_module = importlib.import_module(module_name)
@@ -185,13 +192,95 @@ def main(cfg):
                 env = env_module.Walker2dEnv()
                 env.reset()
                 # Training the environment
-                trainer = train.TrainingManager(env=env)
+                trainer = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
                 model = trainer.run()
-                print("completion succeded") 
+
+                code_paths.append(env_iter_file) 
 
                 rl_runs.append(env_iter_file)  
-            
+
+                # extracting rward stats from tensorboard 
+                tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
+                ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
+                ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
+
+                logging.info( f"iteration [{iter}], sample number [{response_id}]// episode reward mean : {ep_reward_mean}")
+                logging.info( f"iteration [{iter}], sample number [{response_id}]// episode length mean : {ep_length_mean}")
+
+                mean_reward_per_sample.append(ep_reward_mean) 
+                max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
+                epoch_freq = max(int(max_iterations // 10), 1)        
+                content += policy_feedback.format(epoch_freq=epoch_freq)
+                for metric in tensorboard_logs:
+                        metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
+                        metric_cur_max = max(tensorboard_logs[metric])
+                        metric_cur_mean = np.array(tensorboard_logs[metric]).mean()
+                        metric_cur_min = min(tensorboard_logs[metric])
+                        
+                        metric_name = "task_score"
+                        content += f"{metric_name}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                code_feedbacks.append(code_feedback)
+                content += code_feedback
+                content += code_output_tip
+                contents.append(content)
         
+        # Select the best code sample based on the success rate
+        best_sample_idx = np.argmax(np.array(mean_reward_per_sample))
+        best_content = contents[best_sample_idx]
+        max_reward = mean_reward_per_sample[best_sample_idx]
+
+        if max_reward > max_reward_overall :
+            max_reward_overall = max_reward
+            max_reward_code_path = code_paths[best_sample_idx]
+
+        max_rewards.append(max_reward)
+        best_code_paths.append(max_reward_code_path)
+        logging.info(f"Iteration {iter}: Max Success: {max_reward}")
+        logging.info(f"Iteration {iter}: Best Generation ID: {best_sample_idx}")
+        logging.info(f"Iteration {iter}: GPT Output Content:\n" +  responses[best_sample_idx].message.content + "\n")
+        logging.info(f"Iteration {iter}: User Content:\n" + best_content + "\n")
+
+        messages += [{"role": "assistant", "content": responses[best_sample_idx].message.content}]
+        messages += [{"role": "user", "content": best_content}]
+
+        # Save dictionary as JSON file
+        with open('messages.json', 'w') as file:
+            json.dump(messages, file, indent=4)
+    
+    # Evaluate the best reward code many times
+    if max_reward_code_path is None: 
+        logging.info("All iterations of code generation failed, aborting...")
+        logging.info("Please double check the output env_iter*_response*.txt files for repeating errors!")
+        exit()
+
+    logging.info(f"Task: {task}, Max Training Success {max_reward_overall}, Best Reward Code Path: {max_reward_code_path}")
+    logging.info(f"Evaluating best reward code {cfg.num_eval} times")
+    shutil.copy(max_reward_code_path, output_file)
+
+    eval_runs = []
+
+    for i in tqdm(range(cfg.num_eval)):
+        # convert file path to module name
+        module_name = max_reward_code_path.replace('/','.').replace('.py','').lstrip()
+        env_module = importlib.import_module(module_name)
+
+        # Instantiate environment
+        env = env_module.Walker2dEnv()
+        env.reset()
+        # Training the environment
+        trainer_max_reward = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
+        model_max_reward = trainer_max_reward.run()
+        # extracting rward stats from tensorboard 
+        tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
+        eval_runs.append(tensorboard_logs)
+
+    reward_code_final_rewards = list()
+    for i, tb_logs in enumerate(eval_runs) :
+        max_reward = max(tb_logs["cumulative_reward"]) 
+        reward_code_final_rewards.append(max_reward)
+
+    logging.info(f"Final Success Mean: {np.mean(reward_code_final_rewards)}, Std: {np.std(reward_code_final_rewards)}, Raw: {reward_code_final_rewards}")
+    np.savez('final_eval.npz', reward_code_final_successes=reward_code_final_rewards)
 
 if __name__ == "__main__":
     main()

@@ -3,12 +3,47 @@ import gymnasium_robotics
 from results.tasks import *
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.callbacks import BaseCallback
 
 # gym.register_envs(gymnasium_robotics)
 
 # Parallel environments
 # vec_env = make_vec_env("Walker2d-v5", n_envs=1)
+
+
+class CumulativeRewardCallback(BaseCallback):
+    """
+    Custom callback to track cumulative reward during training.
+    """
+
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+        self.cumulative_rewards_list = [] 
+        self.cumulative_reward = 0
+
+        self.success_threshold = 200
+
+        self.episode_reward = 0
+
+    def _on_step(self) -> bool:
+        reward = self.locals["rewards"][0]  # reward for the current step
+        self.cumulative_reward += reward  
+        self.cumulative_rewards.append(self.cumulative_reward)
+        self.logger.dump(self.cumulative_reward)
+        for i,reward in enumerate(self.cumulative_rewards) :
+            self.logger.record("cumulative_reward",)
+
+        # updating episodic reward
+        self.episode_reward += reward 
+        self.logger.dump(self.episode_reward)
+        if self.locals["dones"][0] :
+            
+            self.episode_reward = 0
+            self.logger.record("reward_episode",self.episode_reward)
+        
+        
+        return True  
 
 class TrainingManager :
     def __init__(self, env,root_dir : str,iter,reponse_id, config=None):
@@ -16,9 +51,17 @@ class TrainingManager :
         self.config = config or {}
         self.model = PPO("MlpPolicy", self.env, verbose=1, tensorboard_log=f"{root_dir}/walker2d_tensorboard/")
         obs = env.reset()
-        self.iter_info = f"iter{iter}_respid{reponse_id}"
+        self.iter_info = f"iter{iter}_responseid{reponse_id}"
+        self.tb_logs_fullpath = f"{root_dir}/walker2d_tensorboard/" + self.iter_info
 
-    def run(self) :
-        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= self.iter_info)
+        self.model_save_path = f"{root_dir}/models/{self.iter_info}.zip"
+
+        
+
+    def run(self, tb_log_name = None ) :
+        tb_log_name = tb_log_name or self.tb_logs_fullpath
+        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= tb_log_name)
 
         return self.model
+    def get_logs_path(self):
+        return self.tb_logs_fullpath

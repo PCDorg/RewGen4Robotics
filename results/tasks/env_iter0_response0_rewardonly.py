@@ -1,26 +1,39 @@
 def reward_function(self, x_velocity, observation, action):
-    # Extracting relevant parts of the observation
-    z_torso = observation[0]  # z-coordinate of the torso
-    x_torso_velocity = observation[8]  # velocity of the x-coordinate of the torso
+    import numpy as np
     
-    # Setting temperature variables for transformations
-    forward_velocity_temp = 0.5
-    torso_height_temp = 0.1
-    action_efficiency_temp = 0.01
+    # Retrieve necessary components from the observation
+    z_height = observation[0]
+    torso_angle = observation[1]
+    x_velocity_torso = observation[8]
+    z_velocity_torso = observation[9]
     
-    # Reward components
-    forward_velocity_reward = np.tanh(forward_velocity_temp * x_velocity)  # Encourage moving forward
-    torso_height_reward = np.exp(-torso_height_temp * np.abs(z_torso - 1.2))  # Encourage maintaining a torso height of roughly 1.2 meters for stability
-    action_efficiency_reward = -action_efficiency_temp * np.linalg.norm(action)  # Penalize excessive torque to promote efficient movement
+    # Parameters for scaling
+    height_reward_temp = 0.5
+    velocity_reward_temp = 0.1
+    torso_angle_penalty_temp = -1.0
+    action_effort_penalty_temp = -0.01
+
+    # Reward for maintaining a suitable height for stability
+    height_reward = np.exp(-height_reward_temp * np.abs(z_height - 1.25))  # assuming 1.25 is an optimal height
+
+    # Reward for forward velocity
+    forward_velocity_reward = np.exp(velocity_reward_temp * x_velocity_torso)
     
-    # Calculate total reward
-    total_reward = forward_velocity_reward + torso_height_reward + action_efficiency_reward
+    # Penalty for torso angle deviation to encourage upright position
+    torso_angle_penalty = np.exp(torso_angle_penalty_temp * np.abs(torso_angle))
     
-    # Return both total reward and individual components
+    # Penalty for action effort to encourage efficiency
+    action_effort_penalty = np.exp(action_effort_penalty_temp * np.sum(np.square(action)))
+    
+    # Total Reward
+    total_reward = height_reward + forward_velocity_reward + torso_angle_penalty + action_effort_penalty
+    
+    # Info dictionary
     reward_info = {
-        "forward_velocity_reward": forward_velocity_reward,
-        "torso_height_reward": torso_height_reward,
-        "action_efficiency_reward": action_efficiency_reward
+        'height_reward': height_reward,
+        'forward_velocity_reward': forward_velocity_reward,
+        'torso_angle_penalty': torso_angle_penalty,
+        'action_effort_penalty': action_effort_penalty,
     }
     
     return total_reward, reward_info
