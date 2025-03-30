@@ -191,9 +191,13 @@ def main(cfg):
                 # Instantiate environment
                 env = env_module.Walker2dEnv()
                 env.reset()
-                # Training the environment
-                trainer = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
-                model = trainer.run()
+                try :
+
+                    # Training the environment
+                    trainer = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
+                    model = trainer.run()
+                except :
+                    logging.info("training failed due to execution error!")
 
                 code_paths.append(env_iter_file) 
 
@@ -259,7 +263,7 @@ def main(cfg):
 
     eval_runs = []
 
-    for i in tqdm(range(cfg.num_eval)):
+    for i in range(cfg.num_eval):
         # convert file path to module name
         module_name = max_reward_code_path.replace('/','.').replace('.py','').lstrip()
         env_module = importlib.import_module(module_name)
