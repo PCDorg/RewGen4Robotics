@@ -5,8 +5,8 @@ import logging
 import matplotlib.pyplot as plt
 import os
 from openai import OpenAI
- 
-client = OpenAI(api_key=os.getenv("OPEN_AI_KEY"))
+import traceback
+
 import re
 import subprocess
 from pathlib import Path
@@ -21,7 +21,7 @@ from utils.file import *
 from utils.create_task import create_task
 from model_test_env import train
 
-
+client = OpenAI(api_key=os.getenv("OPEN_AI_KEY"))
 EUREKA_ROOT_DIR = os.getcwd()
 OUTPUTS_DIR = f"{EUREKA_ROOT_DIR}/results"
 
@@ -191,40 +191,51 @@ def main(cfg):
                 # Instantiate environment
                 env = env_module.Walker2dEnv()
                 env.reset()
+                code_paths.append(env_iter_file) 
+                rl_runs.append(env_iter_file) 
+                traceback_msg = ""
                 try :
-
                     # Training the environment
                     trainer = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
                     model = trainer.run()
+                    
                 except :
-                    logging.info("training failed due to execution error!")
+                    content = execution_error_feedback.format(traceback_msg="Code Run cannot be executed due to function signature error! Please re-write an entirely new reward function!")
+                    content += code_output_tip  
+                    contents.append(content)
+                    mean_reward_per_sample.append(DUMMY_FAILURE)
+                    traceback_msg=traceback.print_exc()
+                    continue
 
-                code_paths.append(env_iter_file) 
+                content = ""
+                if traceback_msg == "":
+                    # extracting rward stats from tensorboard 
+                    tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
+                    ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
+                    ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
 
-                rl_runs.append(env_iter_file)  
+                    logging.info( f"iteration [{iter}], sample number [{response_id}]// episode reward mean : {ep_reward_mean}")
+                    logging.info( f"iteration [{iter}], sample number [{response_id}]// episode length mean : {ep_length_mean}")
 
-                # extracting rward stats from tensorboard 
-                tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
-                ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
-                ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
+                    mean_reward_per_sample.append(ep_reward_mean) 
+                    max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
+                    epoch_freq = max(int(max_iterations // 10), 1)        
+                    content += policy_feedback.format(epoch_freq=epoch_freq)
+                    for metric in tensorboard_logs:
+                            metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
+                            metric_cur_max = max(tensorboard_logs[metric])
+                            metric_cur_mean = np.array(tensorboard_logs[metric]).mean()
+                            metric_cur_min = min(tensorboard_logs[metric])
+                            
+                            metric_name = "task_score"
+                            content += f"{metric_name}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                    code_feedbacks.append(code_feedback)
+                    content += code_feedback
+                else :
+                    # Otherwise, provide execution traceback error feedback
+                    content+= execution_error_feedback(traceback_msg= traceback_msg)
 
-                logging.info( f"iteration [{iter}], sample number [{response_id}]// episode reward mean : {ep_reward_mean}")
-                logging.info( f"iteration [{iter}], sample number [{response_id}]// episode length mean : {ep_length_mean}")
-
-                mean_reward_per_sample.append(ep_reward_mean) 
-                max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
-                epoch_freq = max(int(max_iterations // 10), 1)        
-                content += policy_feedback.format(epoch_freq=epoch_freq)
-                for metric in tensorboard_logs:
-                        metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
-                        metric_cur_max = max(tensorboard_logs[metric])
-                        metric_cur_mean = np.array(tensorboard_logs[metric]).mean()
-                        metric_cur_min = min(tensorboard_logs[metric])
-                        
-                        metric_name = "task_score"
-                        content += f"{metric_name}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
-                code_feedbacks.append(code_feedback)
-                content += code_feedback
+                    
                 content += code_output_tip
                 contents.append(content)
         
