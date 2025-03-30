@@ -19,7 +19,7 @@ class CumulativeRewardCallback(BaseCallback):
     def __init__(self, verbose=0):
         super().__init__(verbose)
 
-        self.cumulative_rewards_list = [] 
+        self.cumulative_rewards = [] 
         self.cumulative_reward = 0
 
         self.success_threshold = 200
@@ -31,19 +31,24 @@ class CumulativeRewardCallback(BaseCallback):
         self.cumulative_reward += reward  
         self.cumulative_rewards.append(self.cumulative_reward)
         self.logger.dump(self.cumulative_reward)
-        for i,reward in enumerate(self.cumulative_rewards) :
-            self.logger.record("cumulative_reward",)
+        
+        #self.logger.record("cumulative_rewards", reward)
 
         # updating episodic reward
         self.episode_reward += reward 
-        self.logger.dump(self.episode_reward)
-        if self.locals["dones"][0] :
-            
-            self.episode_reward = 0
-            self.logger.record("reward_episode",self.episode_reward)
-        
+        #self.logger.dump(self.episode_reward)
+        #if self.locals["dones"][0] :     
         
         return True  
+    
+    def _on_rollout_end(self) -> None:
+        """
+        This event is triggered before updating the policy.
+        """
+        self.logger.record("cumulative_rewards", self.cumulative_reward)
+        self.episode_reward = 0
+        self.logger.record("reward_episode",self.episode_reward)
+        pass
 
 class TrainingManager :
     def __init__(self, env,root_dir : str,iter,reponse_id, config=None):
@@ -61,7 +66,7 @@ class TrainingManager :
 
     def run(self ) :
         
-        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= self.iter_info)
+        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= self.iter_info,callback=CumulativeRewardCallback())
 
         self.model.save(path=self.model_save_path)
         return self.model
