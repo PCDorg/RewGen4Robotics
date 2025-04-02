@@ -1,8 +1,0 @@
-iterations: 5
-total_timesteps: 1000000
-eval_episodes: 5
-target_reward: 50.0
-model: gpt-4
-task_description: AntMaze - Teach the quadruped robot to reach a target position efficiently.
-selected_reward_function: reward_function_5.py
-final_training: false

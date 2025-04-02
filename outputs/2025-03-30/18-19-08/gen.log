@@ -1,0 +1,26 @@
+[2025-03-30 18:19:08,925][root][INFO] - Using results directory: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30
+[2025-03-30 18:19:08,925][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-03-30 18:19:08,926][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-03-30 18:19:08,926][root][INFO] - Generating new reward function with LLM...
+[2025-03-30 18:19:08,927][root][INFO] - Sending request to OpenAI API...
+[2025-03-30 18:19:24,193][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-03-30 18:19:24,225][root][INFO] - Received response from LLM.
+[2025-03-30 18:19:24,226][root][INFO] - Iteration 1/5: Successfully generated and extracted reward code.
+[2025-03-30 18:19:24,227][root][INFO] - Iteration 1/5: Saving generated reward function to: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/reward_function_0.py
+[2025-03-30 18:19:24,227][root][INFO] - Iteration 1/5: Starting training and evaluation...
+[2025-03-30 18:19:24,228][root][INFO] - Iteration 1: Creating environment with reward from: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/reward_function_0.py
+[2025-03-30 18:19:24,525][root][INFO] - Iteration 1: Initializing PPO model. Logging TensorBoard to: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/tensorboard_logs/iteration_0
+[2025-03-30 18:19:26,981][root][INFO] - Iteration 1: Starting training for 100000 timesteps...
+[2025-03-30 18:49:08,416][root][INFO] - Iteration 1: Training complete.
+[2025-03-30 18:49:08,416][root][INFO] - Iteration 1: Saving trained model to: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/ppo_model_0.zip
+[2025-03-30 18:49:08,428][root][INFO] - Iteration 1: Model saved successfully.
+[2025-03-30 18:49:08,428][root][WARNING] - Expected PPO log directory '/home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/tensorboard_logs/iteration_0/PPO_1' not found. Reading from parent: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/tensorboard_logs/iteration_0
+[2025-03-30 18:49:08,428][root][INFO] - Iteration 1: Reading scalars from TensorBoard log: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/tensorboard_logs/iteration_0
+[2025-03-30 18:49:08,428][root][INFO] - Attempting to read TensorBoard logs from: /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/tensorboard_logs/iteration_0
+[2025-03-30 18:49:10,431][root][INFO] - Found scalar tags: []
+[2025-03-30 18:49:10,431][root][WARNING] - No scalar data found in /home/ken2/PCD/outputs/2025-03-30/18-19-08/results/2025-03-30/tensorboard_logs/iteration_0. Check if PPO logged correctly and training ran.
+[2025-03-30 18:49:10,431][root][INFO] - Scalar tag 'rollout/ep_rew_mean' not found or empty in TensorBoard data.
+[2025-03-30 18:49:10,431][root][WARNING] - Iteration 1: Could not extract 'rollout/ep_rew_mean' from TensorBoard.
+[2025-03-30 18:49:10,431][root][INFO] - Iteration 1: Starting evaluation for 5 episodes...
+[2025-03-30 18:49:14,661][root][INFO] - Iteration 1: Evaluation complete. Average reward over 5 episodes: 187.54
+[2025-03-30 18:49:14,700][root][INFO] - Iteration 1/5: Training/Evaluation successful.

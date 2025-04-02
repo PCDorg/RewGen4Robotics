@@ -1,10 +1,12 @@
-Task: AntMaze - Teach the quadruped robot (ant) to walk to a target position efficiently.
+Task Description:
+{task_description}
 
-Generate a reward function that:
-- Encourages the ant to move toward the target by using both its position and velocity information.
-- Penalizes excessive or inefficient joint movements based on the torques (actions) applied.
-- Provides a large bonus if the ant reaches the goal, and a penalty if it finishes before reaching the goal.
-- Uses the environment's goal position correctly by accessing it as `env.unwrapped.goal`.
+Environment Details:
+- Task: {env_details.task}
+- Environment Name: {env_details.env_name}
+- Description: {env_details.task_description}
 
-Ensure your code uses only NumPy and standard Python.
+Feedback from Previous Iterations:
+{feedback}
 
+Using the above information, please generate a refined reward function in Python. Ensure that the code is modular and includes clear comments explaining the purpose and rationale behind each section. The reward function should be suitable for guiding a reinforcement learning agent to successfully complete the described task in the specified environment.

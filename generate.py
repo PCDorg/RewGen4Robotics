@@ -5,7 +5,7 @@ import hydra
 from omegaconf import DictConfig
 from utils.file_to_string import file_to_string
 from utils.extracct_code import extract_code_from_response
-from envs.antmaze import make_custom_antmaze
+from envs.antmaze import make_custom_fetch
 from stable_baselines3 import PPO
 
 def get_llm_response(model, system_prompt_path, user_prompt_path, code_tip_path, task_description, feedback, previous_reward_path=None):
@@ -46,7 +46,7 @@ def get_llm_response(model, system_prompt_path, user_prompt_path, code_tip_path,
     return clean_code
 
 def train_and_evaluate(py_reward_path, results_folder,total_timesteps, eval_episodes , iteration ):
-    env = make_custom_antmaze(py_reward_path)
+    env = make_custom_fetch(py_reward_path)
     model = PPO("MultiInputPolicy", env, verbose=0)
     model.learn(total_timesteps=total_timesteps)
     
