@@ -2,21 +2,14 @@ import hydra
 import numpy as np 
 import json
 import logging 
-import matplotlib.pyplot as plt
 import os
 from openai import OpenAI
 import traceback
-
-import re
-import subprocess
 from pathlib import Path
 import shutil
 import time 
-from utils import create_task 
 import importlib
 from omegaconf import DictConfig
-
-from utils import Conversation 
 from utils.file import *
 from utils.create_task import create_task
 from model_test_env import train
@@ -295,7 +288,6 @@ def main(cfg):
         reward_code_final_rewards.append(max_reward)
 
     logging.info(f"Final Success Mean: {np.mean(reward_code_final_rewards)}, Std: {np.std(reward_code_final_rewards)}, Raw: {reward_code_final_rewards}")
-    np.savez('final_eval.npz', reward_code_final_successes=reward_code_final_rewards)
 
 if __name__ == "__main__":
     main()

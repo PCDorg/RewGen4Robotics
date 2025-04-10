@@ -357,39 +357,32 @@ import math
 def reward_function(self, x_velocity, observation, action):
     import numpy as np
     
-    # Retrieve necessary components from the observation
-    z_height = observation[0]
-    torso_angle = observation[1]
-    x_velocity_torso = observation[8]
-    z_velocity_torso = observation[9]
-    
-    # Parameters for scaling
-    height_reward_temp = 0.5
-    velocity_reward_temp = 0.1
-    torso_angle_penalty_temp = -1.0
-    action_effort_penalty_temp = -0.01
+    # Decompose the observation array for relevant values
+    torso_z_position = observation[0]      # z-coordinate of the torso
+    torso_angle = observation[1]           # angle of the torso
+    action_penalty_coefficient = 0.1       # Coefficient for energy efficiency penalty
+    stability_reward_temperature = 0.5     # Temperature for stability reward transformation
+    forward_velocity_temperature = 1.0     # Temperature for forward velocity reward transformation
 
-    # Reward for maintaining a suitable height for stability
-    height_reward = np.exp(-height_reward_temp * np.abs(z_height - 1.25))  # assuming 1.25 is an optimal height
+    # Reward for moving forward: use x_velocity
+    forward_velocity_reward = np.clip(x_velocity, 0, None)  # Positive x_velocity is good
 
-    # Reward for forward velocity
-    forward_velocity_reward = np.exp(velocity_reward_temp * x_velocity_torso)
+    # Penalty for energy inefficient actions: using actions as torques
+    energy_efficiency_penalty = action_penalty_coefficient * np.sum(np.square(action))
     
-    # Penalty for torso angle deviation to encourage upright position
-    torso_angle_penalty = np.exp(torso_angle_penalty_temp * np.abs(torso_angle))
-    
-    # Penalty for action effort to encourage efficiency
-    action_effort_penalty = np.exp(action_effort_penalty_temp * np.sum(np.square(action)))
-    
-    # Total Reward
-    total_reward = height_reward + forward_velocity_reward + torso_angle_penalty + action_effort_penalty
-    
-    # Info dictionary
+    # Stability reward: aiming to keep torso roughly upright and at a reasonable height
+    torso_stability_reward = np.exp(-stability_reward_temperature * (np.abs(torso_z_position - 1) + np.abs(torso_angle)))
+
+    # Total reward calculation
+    total_reward = (np.tanh(forward_velocity_temperature * forward_velocity_reward) 
+                    + torso_stability_reward 
+                    - energy_efficiency_penalty)
+
+    # Create a dictionary of individual reward components
     reward_info = {
-        'height_reward': height_reward,
         'forward_velocity_reward': forward_velocity_reward,
-        'torso_angle_penalty': torso_angle_penalty,
-        'action_effort_penalty': action_effort_penalty,
+        'energy_efficiency_penalty': energy_efficiency_penalty,
+        'torso_stability_reward': torso_stability_reward
     }
-    
+
     return total_reward, reward_info
