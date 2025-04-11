@@ -31,13 +31,10 @@ class CumulativeRewardCallback(BaseCallback):
         self.cumulative_reward += reward  
         self.cumulative_rewards.append(self.cumulative_reward)
         self.logger.dump(self.cumulative_reward)
-        
-        #self.logger.record("cumulative_rewards", reward)
 
         # updating episodic reward
         self.episode_reward += reward 
-        #self.logger.dump(self.episode_reward)
-        #if self.locals["dones"][0] :     
+        
         
         return True  
     
