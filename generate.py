@@ -18,7 +18,7 @@ client = OpenAI(api_key=os.getenv("OPEN_AI_KEY"))
 EUREKA_ROOT_DIR = os.getcwd()
 OUTPUTS_DIR = f"{EUREKA_ROOT_DIR}/results"
 
-@hydra.main(config_path="cfg", config_name="config", version_base="1.1")
+@hydra.main(config_path="/home/bechir/RewGen4Robotic/cfg", config_name="config", version_base="1.1")
 def main(cfg):
     suffix = cfg.suffix
     task=cfg.task
@@ -149,7 +149,7 @@ def main(cfg):
 
                 reward_signature = [
                 f"self.rew_buf[:], self.rew_dict = {gpt_reward_signature}",
-                f"self.extras['gpt_reward'] = self.rew_buf.mean()",
+                f"self.extras['gpt_reward'] = self.rew_buf.mean() if len(self.rew_buf)>0 else 0",
                 f"for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()",
                 ]
 
@@ -206,22 +206,24 @@ def main(cfg):
                     tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
                     ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
                     ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
+                    cumulative_reward = np.array(tensorboard_logs["cumulative_rewards"])
 
                     logging.info( f"iteration [{iter}], sample number [{response_id}]// episode reward mean : {ep_reward_mean}")
                     logging.info( f"iteration [{iter}], sample number [{response_id}]// episode length mean : {ep_length_mean}")
+                    logging.info( f"iteration [{iter}], sample number [{cumulative_reward}]// cumulative reward : {cumulative_reward}")
 
                     mean_reward_per_sample.append(ep_reward_mean) 
                     max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
                     epoch_freq = max(int(max_iterations // 10), 1)        
                     content += policy_feedback.format(epoch_freq=epoch_freq)
-                    for metric in tensorboard_logs:
+                    tensorboard_metrics = ['cumulative_rewards', 'train/actor_loss', 'train/critic_loss', 'train/learning_rate', 'reward_episode', 'rollout/ep_len_mean', 'rollout/ep_rew_mean']
+                    for metric in tensorboard_metrics:
                             metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
                             metric_cur_max = max(tensorboard_logs[metric])
                             metric_cur_mean = np.array(tensorboard_logs[metric]).mean()
                             metric_cur_min = min(tensorboard_logs[metric])
                             
-                            metric_name = "task_score"
-                            content += f"{metric_name}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                            content += f"{metric}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
                     code_feedbacks.append(code_feedback)
                     content += code_feedback
                 else :
@@ -251,9 +253,10 @@ def main(cfg):
         messages += [{"role": "assistant", "content": responses[best_sample_idx].message.content}]
         messages += [{"role": "user", "content": best_content}]
 
-        # Save dictionary as JSON file
-        with open('messages.json', 'w') as file:
+        # Save file as JSON file
+        with open('messages.txt', 'a') as file:
             json.dump(messages, file, indent=4)
+
     
     # Evaluate the best reward code many times
     if max_reward_code_path is None: 
