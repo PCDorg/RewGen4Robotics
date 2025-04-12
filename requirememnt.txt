@@ -1,2 +1,5 @@
 openai
 hydra-core 
+stable-baselines3
+pip install mujoco
+

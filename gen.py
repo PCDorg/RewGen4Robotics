@@ -35,7 +35,7 @@ def get_all_scalars(tb_log_dir):
             # Store pairs of (step, value)
             scalar_dict[tag] = [(s.step, s.value) for s in event_acc.Scalars(tag)]
         if not scalar_dict:
-            logging.warning(f"No scalar data found in {tb_log_dir}. Check if PPO logged correctly and training ran.")
+            logging.warning(f"No scalar data found in {tb_log_dir}. Check if SAC logged correctly and training ran.")
         return scalar_dict
     except Exception as e:
         logging.error(f"Error reading TensorBoard logs from {tb_log_dir}: {e}\n{traceback.format_exc()}")
@@ -110,7 +110,7 @@ def get_llm_response(model, system_prompt_path, user_prompt_path, code_tip_path,
 
 
 def train_and_evaluate(py_reward_path, tb_log_dir_iter, results_folder_iter, total_timesteps, eval_episodes, iteration):
-    """Trains the PPO agent, saves the model, and evaluates it."""
+    """Trains the SAC agent, saves the model, and evaluates it."""
     final_train_reward = None
     avg_eval_reward = None
     error_message = None
@@ -152,13 +152,13 @@ def train_and_evaluate(py_reward_path, tb_log_dir_iter, results_folder_iter, tot
         potential_log_path = os.path.join(tb_log_dir_iter, "SAC_1")
         if not os.path.exists(potential_log_path):
              logging.warning(f"Expected sac log directory '{potential_log_path}' not found. Reading from parent: {tb_log_dir_iter}")
-             ppo_log_path = tb_log_dir_iter
+             sac_log_path = tb_log_dir_iter
         else:
-             ppo_log_path = potential_log_path
+             sac_log_path = potential_log_path
 
 
-        logging.info(f"Iteration {iteration+1}: Reading scalars from TensorBoard log: {ppo_log_path}")
-        scalar_data = get_all_scalars(ppo_log_path)
+        logging.info(f"Iteration {iteration+1}: Reading scalars from TensorBoard log: {sac_log_path}")
+        scalar_data = get_all_scalars(sac_log_path)
         final_train_reward = get_final_scalar_value(scalar_data, 'rollout/ep_rew_mean')
 
         if final_train_reward is not None:

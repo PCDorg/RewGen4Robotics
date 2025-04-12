@@ -1,8 +1,44 @@
 defaults:
-  - env: fetchreach 
-iterations: 5               # Number of iterative cycles for reward generation
-total_timesteps: 100000      # PPO training timesteps for each iteration
-eval_episodes: 5              # Number of evaluation episodes during reward generation
+  - env: fetchreach
+  - _self_
 
-model: "gpt-4"
-final_training: false
+# Training parameters
+training:
+  algorithm: "SAC"  # RL algorithm to use
+  total_timesteps: 100000  # Training timesteps for each iteration
+  eval_episodes: 5  # Number of evaluation episodes
+  learning_rate: 0.0003
+  buffer_size: 1000000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  ent_coef: auto
+
+# Environment parameters
+env:
+  task: "reach"  # Task name
+  env_name: "FetchReach-v2"  # Gym environment name
+  task_description: "Reach a target position with the robot arm"
+  max_episode_steps: 50
+  reward_scale: 1.0
+
+# LLM parameters
+llm:
+  model: "gpt-4"  # OpenAI model to use
+  temperature: 1
+  max_tokens: 2000
+  max_retries: 3
+
+# Experiment parameters
+experiment:
+  iterations: 5  # Number of iterative cycles for reward generation
+  final_training: false  # Whether to do final training after reward generation
+  save_frequency: 10000  # Save model every n timesteps
+  tensorboard_log: true  # Whether to log to tensorboard
+  verbose: 1  # Verbosity level
+
+# Paths
+paths:
+  results_dir: "results/reach"  # Base directory for results
+  tensorboard_dir: "tensorboard_logs"  # Directory for tensorboard logs
+  model_dir: "models"  # Directory for saved models
