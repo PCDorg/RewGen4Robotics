@@ -30,10 +30,9 @@ class CumulativeRewardCallback(BaseCallback):
         reward = self.locals["rewards"][0]  # reward for the current step
         self.cumulative_reward += reward  
         self.cumulative_rewards.append(self.cumulative_reward)
-        self.logger.dump(self.cumulative_reward)
-
+        self.logger.record("cumulative_rewards", self.cumulative_reward)
         # updating episodic reward
-        self.episode_reward += reward 
+        #self.episode_reward += reward 
         
         
         return True  
@@ -63,7 +62,7 @@ class TrainingManager :
 
     def run(self ) :
         
-        self.model.learn(total_timesteps= self.config.get('timesteps',1e6),tb_log_name= self.iter_info,callback=CumulativeRewardCallback())
+        self.model.learn(total_timesteps= self.config.get('timesteps',500000),tb_log_name= self.iter_info,callback=CumulativeRewardCallback())
 
         self.model.save(path=self.model_save_path)
         return self.model

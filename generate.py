@@ -211,10 +211,8 @@ def main(cfg):
                         glfw.terminate()
                 content = ""
                 if traceback_msg == "":
-                    # extracting rward stats from tensorboard 
+                    # extracting rward stats from tensorboard
                     try:
-                        # Ensure TensorBoard directory exists
-                        os.makedirs(trainer.get_logs_path(), exist_ok=True)
                         tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path())
                         ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
                         ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
@@ -243,10 +241,7 @@ def main(cfg):
                         mean_reward_per_sample.append(DUMMY_FAILURE)
                         content += f"Error loading training metrics: {str(e)}\n"
                 else :
-                    # Otherwise, provide execution traceback error feedback
                     content+= execution_error_feedback(traceback_msg= traceback_msg)
-
-                    
                 content += code_output_tip
                 contents.append(content)
         
@@ -269,9 +264,17 @@ def main(cfg):
         messages += [{"role": "assistant", "content": responses[best_sample_idx].message.content}]
         messages += [{"role": "user", "content": best_content}]
 
-        # Save file as JSON file
-        with open('messages.txt', 'a') as file:
-            json.dump(messages, file, indent=4)
+        
+        try:
+            # create the conversation file if it doesn't exist
+            messages_file = os.path.join(OUTPUTS_DIR, 'messages.txt')
+            os.makedirs(os.path.dirname(messages_file), exist_ok=True)
+            
+            with open(messages_file, 'w') as file:
+                json.dump(messages, file, indent=4)
+            logging.info(f"Messages saved to {messages_file}")
+        except Exception as e:
+            logging.error(f"Error saving messages: {str(e)}")
 
     
     # Evaluate the best reward code many times
@@ -294,10 +297,9 @@ def main(cfg):
         # Instantiate environment
         env = env_module.Walker2dEnv()
         env.reset()
-        # Training the environment
+        # training the environment
         trainer_max_reward = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
         model_max_reward = trainer_max_reward.run()
-        #closing the environment
         env.close()
         # extracting rward stats from tensorboard 
         tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
