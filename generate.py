@@ -199,33 +199,49 @@ def main(cfg):
                     mean_reward_per_sample.append(DUMMY_FAILURE)
                     traceback_msg=traceback.print_exc()
                     continue
-
+                
+                try:
+                    env.close()
+                except Exception as e:
+                    logging.warning(f"Error closing environment: {str(e)}")
+                finally:
+                    # Force cleanup of GLFW context
+                    import glfw
+                    if glfw.get_current_context():
+                        glfw.terminate()
                 content = ""
                 if traceback_msg == "":
                     # extracting rward stats from tensorboard 
-                    tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
-                    ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
-                    ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
-                    cumulative_reward = np.array(tensorboard_logs["cumulative_rewards"])
+                    try:
+                        # Ensure TensorBoard directory exists
+                        os.makedirs(trainer.get_logs_path(), exist_ok=True)
+                        tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path())
+                        ep_reward_mean = np.array(tensorboard_logs["rollout/ep_rew_mean"]).mean()
+                        ep_length_mean = np.array(tensorboard_logs["rollout/ep_len_mean"]).mean()
+                        cumulative_reward = np.array(tensorboard_logs["cumulative_rewards"])
 
-                    logging.info( f"iteration [{iter}], sample number [{response_id}]// episode reward mean : {ep_reward_mean}")
-                    logging.info( f"iteration [{iter}], sample number [{response_id}]// episode length mean : {ep_length_mean}")
-                    logging.info( f"iteration [{iter}], sample number [{cumulative_reward}]// cumulative reward : {cumulative_reward}")
+                        logging.info( f"iteration [{iter}], sample number [{response_id}]// episode reward mean : {ep_reward_mean}")
+                        logging.info( f"iteration [{iter}], sample number [{response_id}]// episode length mean : {ep_length_mean}")
+                        logging.info( f"iteration [{iter}], sample number [{cumulative_reward}]// cumulative reward : {cumulative_reward}")
 
-                    mean_reward_per_sample.append(ep_reward_mean) 
-                    max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
-                    epoch_freq = max(int(max_iterations // 10), 1)        
-                    content += policy_feedback.format(epoch_freq=epoch_freq)
-                    tensorboard_metrics = ['cumulative_rewards', 'train/actor_loss', 'train/critic_loss', 'train/learning_rate', 'reward_episode', 'rollout/ep_len_mean', 'rollout/ep_rew_mean']
-                    for metric in tensorboard_metrics:
-                            metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
-                            metric_cur_max = max(tensorboard_logs[metric])
-                            metric_cur_mean = np.array(tensorboard_logs[metric]).mean()
-                            metric_cur_min = min(tensorboard_logs[metric])
-                            
-                            content += f"{metric}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
-                    code_feedbacks.append(code_feedback)
-                    content += code_feedback
+                        mean_reward_per_sample.append(ep_reward_mean) 
+                        max_iterations = np.array(tensorboard_logs['gt_reward']).shape[0]
+                        epoch_freq = max(int(max_iterations // 10), 1)        
+                        content += policy_feedback.format(epoch_freq=epoch_freq)
+                        tensorboard_metrics = ['cumulative_rewards', 'train/actor_loss', 'train/critic_loss', 'train/learning_rate', 'reward_episode', 'rollout/ep_len_mean', 'rollout/ep_rew_mean']
+                        for metric in tensorboard_metrics:
+                                metric_cur = ['{:.2f}'.format(x) for x in tensorboard_logs[metric][::epoch_freq]]
+                                metric_cur_max = max(tensorboard_logs[metric])
+                                metric_cur_mean = np.array(tensorboard_logs[metric]).mean()
+                                metric_cur_min = min(tensorboard_logs[metric])
+                                
+                                content += f"{metric}: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                        code_feedbacks.append(code_feedback)
+                        content += code_feedback
+                    except Exception as e:
+                        logging.error(f"Error loading TensorBoard logs: {str(e)}")
+                        mean_reward_per_sample.append(DUMMY_FAILURE)
+                        content += f"Error loading training metrics: {str(e)}\n"
                 else :
                     # Otherwise, provide execution traceback error feedback
                     content+= execution_error_feedback(traceback_msg= traceback_msg)
@@ -281,6 +297,8 @@ def main(cfg):
         # Training the environment
         trainer_max_reward = train.TrainingManager(env=env,root_dir=workspace_dir,iter=iter,reponse_id=response_id)
         model_max_reward = trainer_max_reward.run()
+        #closing the environment
+        env.close()
         # extracting rward stats from tensorboard 
         tensorboard_logs = load_tensorboard_logs(trainer.get_logs_path()) 
         eval_runs.append(tensorboard_logs)
