@@ -1,7 +1,7 @@
 defaults:
   - env: fetchreach 
 iterations: 5               # Number of iterative cycles for reward generation
-total_timesteps: 200000      # PPO training timesteps for each iteration
+total_timesteps: 100000      # PPO training timesteps for each iteration
 eval_episodes: 5              # Number of evaluation episodes during reward generation
 
 model: "gpt-4"

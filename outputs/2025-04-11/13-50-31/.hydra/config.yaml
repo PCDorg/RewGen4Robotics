@@ -1,0 +1,15 @@
+env:
+  task: FetchReach
+  env_name: fetchreach-v1
+  task_description: 'In this environment, a robotic arm must reach a target position
+    as quickly and accurately as possible. The task challenges the agent to minimize
+    the distance to the target while optimizing for speed. the reaward should be negative
+    distance to the target.
+
+    '
+  timestamps: '2000'
+iterations: 5
+total_timesteps: 100000
+eval_episodes: 5
+model: gpt-4
+final_training: false

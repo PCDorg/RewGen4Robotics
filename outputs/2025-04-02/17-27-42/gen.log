@@ -1,0 +1,6 @@
+[2025-04-02 17:27:42,952][root][INFO] - Using results directory: /home/ken2/PCD/results/reach/2025-04-02
+[2025-04-02 17:27:42,954][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-04-02 17:27:42,954][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-04-02 17:27:42,954][root][INFO] - Generating new reward function with LLM...
+[2025-04-02 17:27:42,956][root][INFO] - Sending request to OpenAI API...
+[2025-04-02 17:27:54,990][openai._base_client][INFO] - Retrying request to /chat/completions in 0.400243 seconds

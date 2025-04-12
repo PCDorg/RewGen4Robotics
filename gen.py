@@ -10,7 +10,7 @@ from utils.file_to_string import file_to_string
 from utils.extracct_code import extract_code_from_response
 from envs.fetchReach import make_custom_fetch
 import gymnasium as gym
-from stable_baselines3 import PPO
+from stable_baselines3 import SAC
 from stable_baselines3.common.monitor import Monitor
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 import traceback
@@ -132,14 +132,14 @@ def train_and_evaluate(py_reward_path, tb_log_dir_iter, results_folder_iter, tot
 
         env = Monitor(env)
 
-        logging.info(f"Iteration {iteration+1}: Initializing PPO model. Logging TensorBoard to: {tb_log_dir_iter}")
-        model = PPO("MultiInputPolicy", env, verbose=0, tensorboard_log=tb_log_dir_iter)
+        logging.info(f"Iteration {iteration+1}: Initializing SAC model. Logging TensorBoard to: {tb_log_dir_iter}")
+        model = SAC("MultiInputPolicy", env, verbose=0, tensorboard_log=tb_log_dir_iter)
 
         logging.info(f"Iteration {iteration+1}: Starting training for {total_timesteps} timesteps...")
-        model.learn(total_timesteps=total_timesteps, tb_log_name="PPO", reset_num_timesteps=False)
+        model.learn(total_timesteps=total_timesteps, tb_log_name="SAC", reset_num_timesteps=False)
         logging.info(f"Iteration {iteration+1}: Training complete.")
 
-        model_save_path = os.path.join(results_folder_iter, f"ppo_model_{iteration}.zip")
+        model_save_path = os.path.join(results_folder_iter, f"sac_model_{iteration}.zip")
         logging.info(f"Iteration {iteration+1}: Saving trained model to: {model_save_path}")
         try:
             model.save(model_save_path)
@@ -149,9 +149,9 @@ def train_and_evaluate(py_reward_path, tb_log_dir_iter, results_folder_iter, tot
             model_save_path = None
 
 
-        potential_log_path = os.path.join(tb_log_dir_iter, "PPO_1")
+        potential_log_path = os.path.join(tb_log_dir_iter, "SAC_1")
         if not os.path.exists(potential_log_path):
-             logging.warning(f"Expected PPO log directory '{potential_log_path}' not found. Reading from parent: {tb_log_dir_iter}")
+             logging.warning(f"Expected sac log directory '{potential_log_path}' not found. Reading from parent: {tb_log_dir_iter}")
              ppo_log_path = tb_log_dir_iter
         else:
              ppo_log_path = potential_log_path
@@ -233,36 +233,34 @@ Below is the information from the previous iteration:
 def main(cfg: DictConfig):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+    # Setup directories
     results_folder_base = "/home/ken2/PCD/results/reach"
     os.makedirs(results_folder_base, exist_ok=True)
-
     current_date = date.today().strftime("%Y-%m-%d")
     iteration_results_folder = os.path.join(results_folder_base, current_date)
     os.makedirs(iteration_results_folder, exist_ok=True)
-
     logging.info(f"Using results directory: {iteration_results_folder}")
 
     tb_log_dir_base = os.path.join(iteration_results_folder, "tensorboard_logs")
     os.makedirs(tb_log_dir_base, exist_ok=True)
 
+    # Setup OpenAI API
     openai_api_key = os.getenv("OPENAI_API_KEY")
     openai.api_key = openai_api_key
 
-
-    prompt_base_path = os.path.abspath("/home/ken2/PCD/utils/prompts") # Absolute path
+    # Setup prompt paths
+    prompt_base_path = os.path.abspath("/home/ken2/PCD/utils/prompts")
     system_prompt_path = os.path.join(prompt_base_path, "system_prompt.txt")
-    user_prompt_path = os.path.join(prompt_base_path, "user_prompt.txt") # This is the template file
+    user_prompt_path = os.path.join(prompt_base_path, "user_prompt.txt")
     code_tip_path = os.path.join(prompt_base_path, "code_output_tip.txt")
-
     for f_path in [system_prompt_path, user_prompt_path, code_tip_path]:
          if not os.path.exists(f_path):
               logging.error(f"Required prompt file not found: {f_path}")
               return
+    conversation_file = os.path.join(iteration_results_folder, "conversation_history.md")
 
-    conversation_file = os.path.join(iteration_results_folder, "conversation_history.md") # Use Markdown
-
-    # --- Iteration Loop ---
-    current_feedback_content = "This is the first iteration. Please generate an initial reward function based on the task description." # Initial feedback
+    # Initial feedback and code placeholders
+    current_feedback_content = "This is the first iteration. Please generate an initial reward function based on the task description."
     previous_reward_code = "None (first iteration)"
     all_results_summary = []
 
@@ -272,7 +270,7 @@ def main(cfg: DictConfig):
 
         reward_py_path = os.path.join(iteration_results_folder, f"reward_function_{i}.py")
         tb_log_dir_iter = os.path.join(tb_log_dir_base, f"iteration_{i}")
-        os.makedirs(tb_log_dir_iter, exist_ok=True) # Ensure TB dir exists for this iter
+        os.makedirs(tb_log_dir_iter, exist_ok=True)
 
         reward_function_code = ""
         conversation_text = ""
@@ -292,7 +290,6 @@ def main(cfg: DictConfig):
                  feedback_content=current_feedback_content,
                  previous_reward_code=previous_reward_code
              )
-
              if "Error calling OpenAI API" in conversation_text:
                   logging.error(f"{iteration_str}: LLM API call failed. Aborting iteration.")
                   with open(conversation_file, "a", encoding="utf-8") as conv_file:
@@ -303,18 +300,14 @@ def main(cfg: DictConfig):
                        conv_file.write("---\n\n")
                   all_results_summary.append(f"Iter {i+1}: Failed - OpenAI API Error")
                   break
-
              elif not reward_function_code:
                   logging.warning(f"{iteration_str}: Could not extract valid Python code from LLM response (Attempt {llm_attempts}).")
                   if llm_attempts < max_llm_attempts:
                        logging.info("Retrying LLM call.")
-
                        current_feedback_content += "\n\n[System Retry Feedback]: The previous response did not contain a valid Python code block. Please ensure the reward function code is clearly marked within ```python ... ``` tags and follows the required signature."
-
                        time.sleep(2)
                   else:
                        logging.error(f"{iteration_str}: Failed to get valid reward code from LLM after {max_llm_attempts} attempts.")
-
                        with open(conversation_file, "a", encoding="utf-8") as conv_file:
                             conv_file.write(f"## {iteration_str}\n\n")
                             conv_file.write(f"**Status:** Failed - Could not generate valid reward code after {max_llm_attempts} attempts\n\n")
@@ -322,23 +315,17 @@ def main(cfg: DictConfig):
                             conv_file.write("**Attempted User Prompt to LLM:**\n```\n{user_prompt_for_llm}\n```\n\n")
                             conv_file.write("---\n\n")
                        all_results_summary.append(f"Iter {i+1}: Failed - No valid code from LLM")
-
              else:
                   logging.info(f"{iteration_str}: Successfully generated and extracted reward code.")
 
-
-
-
         if not reward_function_code:
              logging.warning(f"{iteration_str}: Skipping Training/Evaluation due to failure in LLM response generation.")
-
              current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + (
                   f"\n**Status:** Failed to generate usable code in the previous attempt after {llm_attempts} tries.\n"
                   f"**Last LLM Response:**\n{conversation_text}\n\n"
                   "Please try again, carefully following the instructions and ensuring the code is correctly formatted."
              )
              previous_reward_code = "None (Code generation failed)"
-
 
         logging.info(f"{iteration_str}: Saving generated reward function to: {reward_py_path}")
         try:
@@ -348,11 +335,11 @@ def main(cfg: DictConfig):
         except IOError as e:
              logging.error(f"{iteration_str}: Failed to write reward function file: {e}. Skipping training/evaluation.")
              with open(conversation_file, "a", encoding="utf-8") as conv_file:
-                 conv_file.write(f"## {iteration_str}\n\n")
-                 conv_file.write("**Status:** Failed - Could not save reward code\n\n")
-                 conv_file.write("**Error:**\n```\n{str(e)}\n```\n\n")
-                 conv_file.write("**Generated Code (Unsaved):**\n```python\n{reward_function_code}\n```\n\n")
-                 conv_file.write("---\n\n")
+                conv_file.write(f"## {iteration_str}\n\n")
+                conv_file.write("**Status:** Failed - Could not save reward code\n\n")
+                conv_file.write(f"**Error:**\n```\n{str(e)}\n```\n\n")
+                conv_file.write(f"**Generated Code (Unsaved):**\n```python\n{reward_function_code}\n```\n\n")
+                conv_file.write("---\n\n")
              current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + (
                  f"\n**Status:** Internal error: Failed to save the previously generated code.\n"
                  f"**Error:** {e}\n"
@@ -361,7 +348,6 @@ def main(cfg: DictConfig):
              previous_reward_code = "None (Code saving failed)"
              all_results_summary.append(f"Iter {i+1}: Failed - Cannot save code")
              continue
-
 
         logging.info(f"{iteration_str}: Starting training and evaluation...")
         avg_eval_reward, final_train_reward, error_message, saved_model_path = train_and_evaluate(
@@ -372,80 +358,77 @@ def main(cfg: DictConfig):
             eval_episodes=cfg.eval_episodes,
             iteration=i
         )
-        current_status_message = ""
-        if error_message:
-            status = "Failed - Error during Training/Evaluation"
-            logging.warning(f"{iteration_str}: Training/Evaluation failed. Error logged.")
-            current_status_message = (
-                f"**Status:** {status}\n"
-                f"**Error details:**\n```\n{error_message}\n```\n"
-                "Please analyze the reward function code (below) and the error message to fix the issue."
-            )
-        elif avg_eval_reward is None:
+
+        # Precompute evaluation and training reward strings
+        eval_reward_str = f"{avg_eval_reward:.2f}" if avg_eval_reward is not None else "N/A"
+        train_reward_str = f"{final_train_reward:.2f}" if final_train_reward is not None else "N/A"
+
+        if avg_eval_reward is None:
              status = "Partial Success - Evaluation Failed"
              logging.warning(f"{iteration_str}: Evaluation did not complete successfully (avg_eval_reward is None).")
              current_status_message = (
                  f"**Status:** {status}\n"
-                 f"**Training Result:** Final Mean Training Reward (from TensorBoard `rollout/ep_rew_mean`): `{final_train_reward:.2f if final_train_reward is not None else 'N/A'}`\n"
+                 f"**Training Result:** Final Mean Training Reward (from TensorBoard `rollout/ep_rew_mean`): `{train_reward_str}`\n"
                  f"**Evaluation Result:** Failed to get an average reward (likely no episodes completed).\n\n"
                  "Review the reward function (below) for issues that might prevent episode completion during evaluation (e.g., infinite loops, unreachable goals)."
              )
         else:
-            status = "Success"
-            logging.info(f"{iteration_str}: Training/Evaluation successful.")
-            current_status_message = (
-                f"**Status:** {status}\n"
-                f"**Results:**\n"
-                f"- Average Evaluation Reward: `{avg_eval_reward:.2f}`\n"
-                f"- Final Mean Training Reward (TensorBoard `rollout/ep_rew_mean`): `{final_train_reward:.2f if final_train_reward is not None else 'N/A'}`\n\n"
-                f"Based on these results and the task goal ('{cfg.env.task}'), analyze the reward function code (below) and suggest improvements."
-            )
+             status = "Success"
+             logging.info(f"{iteration_str}: Training/Evaluation successful.")
+             current_status_message = (
+                 f"**Status:** {status}\n"
+                 f"**Results:**\n"
+                 f"- Average Evaluation Reward: `{eval_reward_str}`\n"
+                 f"- Final Mean Training Reward (TensorBoard `rollout/ep_rew_mean`): `{train_reward_str}`\n\n"
+                 f"Based on these results and the task goal ('{cfg.env.task}'), analyze the reward function code (below) and suggest improvements."
+             )
 
         current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + \
                                    f"\n{current_status_message}" + \
                                    f"\n\n**Previous Reward Function Code:**\n```python\n{previous_reward_code}\n```"
 
-
         logging.info(f"{iteration_str}: Logging results to {conversation_file}")
         with open(conversation_file, "a", encoding="utf-8") as conv_file:
-            conv_file.write(f"## {iteration_str}\n\n")
-            conv_file.write(f"**Status:** {status}\n\n")
-            conv_file.write("**User Prompt to LLM (leading to this iteration's code):**\n*Note: Contains feedback from the iteration before this one.*\n```\n{user_prompt_for_llm}\n```\n\n")
-            conv_file.write("**LLM Response:**\n```\n{conversation_text}\n```\n\n")
-            conv_file.write(f"**Generated Reward Code (saved to {os.path.basename(reward_py_path)}):**\n```python\n{reward_function_code}\n```\n\n") # Use the code generated in *this* iter
-            conv_file.write("**Training & Evaluation Results:**\n")
-            conv_file.write(f"- TensorBoard Log Directory: `{os.path.relpath(tb_log_dir_iter, iteration_results_folder)}`\n") # Relative path
-            if saved_model_path:
-                conv_file.write(f"- Saved Model: `{os.path.relpath(saved_model_path, iteration_results_folder)}`\n") # Relative path
-            else:
-                conv_file.write("- Saved Model: Failed or Skipped\n")
-            eval_reward_str = f"`{avg_eval_reward:.2f}`" if avg_eval_reward is not None else "`N/A`"
-            conv_file.write(f"- Average Evaluation Reward: {eval_reward_str}\n")
-
-            train_reward_str = f"`{final_train_reward:.2f}`" if final_train_reward is not None else "`N/A`"
-            conv_file.write(f"- Final Mean Training Reward (TensorBoard `rollout/ep_rew_mean`): {train_reward_str}\n")
-            if error_message:
-                conv_file.write("- Error Encountered: Yes (See Status/Feedback)\n")
-            conv_file.write("\n")
-            conv_file.write("**Feedback Content Generated for Next Iteration:**\n```\n{current_feedback_content}\n```\n\n")
-            conv_file.write("---\n\n")
+             conv_file.write(f"## {iteration_str}\n\n")
+             conv_file.write(f"**Status:** {status}\n\n")
+             conv_file.write(
+                 f"**User Prompt to LLM (leading to this iteration's code):**\n"
+                 f"*Note: Contains feedback from the iteration before this one.*\n```\n{user_prompt_for_llm}\n```\n\n"
+             )
+             conv_file.write(f"**LLM Response:**\n```\n{conversation_text}\n```\n\n")
+             conv_file.write(
+                 f"**Generated Reward Code (saved to {os.path.basename(reward_py_path)}):**\n"
+                 f"```python\n{reward_function_code}\n```\n\n"
+             )
+             conv_file.write("**Training & Evaluation Results:**\n")
+             conv_file.write(f"- TensorBoard Log Directory: `{os.path.relpath(tb_log_dir_iter, iteration_results_folder)}`\n")
+             if saved_model_path:
+                 conv_file.write(f"- Saved Model: `{os.path.relpath(saved_model_path, iteration_results_folder)}`\n")
+             else:
+                 conv_file.write("- Saved Model: Failed or Skipped\n")
+             conv_file.write(f"- Average Evaluation Reward: `{eval_reward_str}`\n")
+             conv_file.write(f"- Final Mean Training Reward (TensorBoard `rollout/ep_rew_mean`): `{train_reward_str}`\n")
+             if error_message:
+                 conv_file.write("- Error Encountered: Yes (See Status/Feedback)\n")
+             conv_file.write("\n")
+             conv_file.write(
+                 f"**Feedback Content Generated for Next Iteration:**\n```\n{current_feedback_content}\n```\n\n"
+             )
+             conv_file.write("---\n\n")
 
         eval_reward_summary = f"{avg_eval_reward:.2f}" if avg_eval_reward is not None else "N/A"
         train_reward_summary = f"{final_train_reward:.2f}" if final_train_reward is not None else "N/A"
         summary = f"Iter {i+1}: Status='{status}', Eval Reward={eval_reward_summary}, Train Reward={train_reward_summary}, Model Saved='{bool(saved_model_path)}', Error='{bool(error_message)}'"
         all_results_summary.append(summary)
-
         logging.info(f"========== Finished {iteration_str} ==========\n")
-
 
     logging.info("Iterative reward function generation complete.")
     logging.info("Final Results Summary:")
     if not all_results_summary:
-        logging.info("  No iterations completed fully.")
+         logging.info("  No iterations completed fully.")
     else:
-        for result_line in all_results_summary:
-            logging.info(f"  {result_line}")
-
+         for result_line in all_results_summary:
+              logging.info(f"  {result_line}")
     logging.info(f"Detailed logs and artifacts saved in: {iteration_results_folder}")
 
 
