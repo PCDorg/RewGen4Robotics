@@ -1,0 +1,11 @@
+# Environment specific configuration for Unitree Go1
+env_name: "Go1MujocoCustom-v0" # Custom env ID if registered, or a descriptive name
+task: "Make the Go1 robot walk forward at a desired velocity."
+task_description: "The agent controls a Unitree Go1 quadruped robot simulated in MuJoCo. The goal is to track a desired linear (forward) and angular velocity. Observations include joint positions/velocities, base linear/angular velocities, projected gravity vector, desired velocity, and previous actions. Actions are joint torques."
+timestamps: 1000000 # Example: Training timesteps for this specific environment
+ctrl_type: "torque" # Control type ('torque' or 'position') - used to select the MuJoCo model file
+# Add other env-specific parameters if needed, e.g.:
+# desired_velocity_range: [[0.5, 0.0, 0.0], [1.0, 0.0, 0.0]] # Min/Max [vx, vy, wz]
+# reward_weights: {...}
+# cost_weights: {...}
+# observation_scales: {...} 

@@ -1,6 +1,39 @@
+# @package _global_
+
 defaults:
-  - env: fetchreach
-  - _self_
+  - env: fetchReach # Default environment
+  - override /hydra/job_logging: disabled # Optional: disable Hydra's default logging structure if desired
+  - override /hydra/hydra_logging: disabled # Optional: disable Hydra's default logging structure if desired
+
+# General experiment settings
+iterations: ${experiment.iterations} # Use iterations from experiment section
+total_timesteps: ${env.timestamps} # Use timestamp from the selected env config
+eval_episodes: ${training.eval_episodes} # Use eval_episodes from training section
+# target_reward: 100.0 # Example target reward, may need adjustment per env (Removed, consider per-env target)
+final_training: ${experiment.final_training} # Use final_training from experiment section
+# selected_reward_function: "reward_function_4.py" # Example, which reward function to use for final training (Removed, usually determined by last iteration)
+
+# LLM settings (Moved to llm section below)
+# model: "gpt-4" # Or your preferred model
+
+# Paths (Consider making these relative or using Hydra variables if possible)
+# Note: Absolute paths might cause issues if the project is moved.
+# Using relative paths from the project root or Hydra's output directory is safer.
+# Example using Hydra's interpolation for output dirs:
+# results_base: ${hydra:runtime.output_dir} # Saves results relative to Hydra's output folder
+# prompt_base: utils/prompts # Relative path
+
+# --- Training settings (if needed globally, otherwise put in env configs) ---
+# Example: algorithm specific params (can be overridden by env config)
+# algorithm:
+#   name: SAC
+#   learning_rate: 3e-4
+#   buffer_size: 1000000
+#   batch_size: 256
+#   gamma: 0.99
+#   tau: 0.005
+
+# The 'env' settings will be loaded from the selected file in cfg/env/
 
 # Training parameters
 training:
@@ -14,17 +47,14 @@ training:
   tau: 0.005
   ent_coef: auto
 
-# Environment parameters
-env:
-  task: "reach"  # Task name
-  env_name: "FetchReach-v2"  # Gym environment name
-  task_description: "Reach a target position with the robot arm"
-  max_episode_steps: 50
-  reward_scale: 1.0
+# Environment parameters (This section seems empty or misplaced, remove if not used)
+# llm_provider: groq          # Can be 'openai' or 'groq' (Moved to llm section)
+# model: llama3-8b-8192     # (Moved to llm section)
 
 # LLM parameters
 llm:
-  model: "gpt-4"  # OpenAI model to use
+  provider: groq          # Can be 'openai' or 'groq'
+  model: llama3-8b-8192   # Model name appropriate for the provider
   temperature: 1
   max_tokens: 2000
   max_retries: 3
@@ -39,6 +69,6 @@ experiment:
 
 # Paths
 paths:
-  results_dir: "results/reach"  # Base directory for results
-  tensorboard_dir: "tensorboard_logs"  # Directory for tensorboard logs
-  model_dir: "models"  # Directory for saved models
+  results_dir: "results"  # Base directory for all run results
+  model_dir: "models"    # Base directory for all saved models
+# tensorboard_dir: "tensorboard_logs" # Removed, will be relative to run results

@@ -1,0 +1,10 @@
+# Environment specific configuration for AntMaze
+env_name: "AntMazeCustom-v0" # Custom env ID if registered, or a descriptive name
+task: "Navigate the Ant robot through a maze to reach a target."
+task_description: "The agent controls a quadrupedal robot (Ant) in a maze-like environment. The goal is to navigate from a starting position to a target position within the maze. Observations likely include joint positions, velocities, contact forces, and potentially lidar or position information. Actions are joint torques or target joint positions."
+timestamps: 2000000 # Example: Training timesteps for this specific environment
+# Add other env-specific parameters if needed, e.g.:
+# maze_map_name: "AntMaze_Default"
+# reward_type: "sparse"
+# action_space_details: ...
+# observation_space_details: ... 

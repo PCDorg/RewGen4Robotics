@@ -1,12 +1,27 @@
-Task Description:
+Task Goal: {task}
+Environment Name: {env_name}
+Full Task Description:
 {task_description}
 
-Environment Details:
-- Task: {env_details.task}
-- Environment Name: {env_details.env_name}
-- Description: {env_details.task_description}
+Detailed Environment Configuration:
+{env_details}
 
-Feedback from Previous Iterations:
+Observation Space Details:
+{observation_details}
+
+Feedback from Previous Iterations / Analysis:
 {feedback}
 
-Using the above information, please generate a refined reward function in Python. Ensure that the code is modular and includes clear comments explaining the purpose and rationale behind each section. The reward function should be suitable for guiding a reinforcement learning agent to successfully complete the described task in the specified environment.
+Instructions:
+Based on the task, environment configuration, observation space, and feedback, generate an improved Python reward function. 
+The function must have the signature: `def custom_reward_function(obs, action, done, env):`
+
+Environment-Specific Notes:
+- **Go1 Env:** The target is a velocity vector. Access it using `env.desired_velocity`. Do NOT use `env.goal`.
+- **FetchReach Env:** The target is a position. Access the desired goal position using `env.unwrapped.goal`.
+- **AntMaze Env:** Refer to environment documentation or observation details for goal/target information.
+
+IMPORTANT: `obs` is a dictionary for Go1 and FetchReach. Access its components ONLY using the string keys listed in Observation Space Details (e.g., `obs['linear_velocity']`). DO NOT use integer indices like `obs[0]` or `obs[-3]`.
+
+Use only NumPy (`import numpy as np`) and standard Python libraries.
+Ensure the code is enclosed in a single Python code block (```python ... ```).
