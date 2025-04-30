@@ -1,0 +1,37 @@
+[2025-04-09 16:12:33,512][root][INFO] - Using results directory: /home/ken2/PCD/results/reach/2025-04-09
+[2025-04-09 16:12:33,513][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-04-09 16:12:33,513][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-04-09 16:12:33,514][root][INFO] - Generating new reward function with LLM...
+[2025-04-09 16:12:33,515][root][INFO] - Sending request to OpenAI API...
+[2025-04-09 16:12:57,193][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-04-09 16:12:57,245][root][INFO] - Received response from LLM.
+[2025-04-09 16:12:57,247][root][INFO] - Iteration 1/5: Successfully generated and extracted reward code.
+[2025-04-09 16:12:57,247][root][INFO] - Iteration 1/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py
+[2025-04-09 16:12:57,248][root][INFO] - Iteration 1/5: Starting training and evaluation...
+[2025-04-09 16:12:57,249][root][INFO] - Iteration 1: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py
+[2025-04-09 16:12:57,606][root][INFO] - Iteration 1: Initializing SAC model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0
+[2025-04-09 16:13:00,499][root][INFO] - Iteration 1: Starting training for 200 timesteps...
+[2025-04-09 16:13:01,658][root][ERROR] - Error during training/evaluation in Iteration 1: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
+[2025-04-09 16:13:01,666][root][ERROR] - Traceback (most recent call last):
+  File "/home/ken2/PCD/gen.py", line 139, in train_and_evaluate
+    model.learn(total_timesteps=total_timesteps, tb_log_name="SAC", reset_num_timesteps=False)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/sac/sac.py", line 308, in learn
+    return super().learn(
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/off_policy_algorithm.py", line 328, in learn
+    rollout = self.collect_rollouts(
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/off_policy_algorithm.py", line 560, in collect_rollouts
+    new_obs, rewards, dones, infos = env.step(actions)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/vec_env/base_vec_env.py", line 222, in step
+    return self.step_wait()
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 59, in step_wait
+    obs, self.buf_rews[env_idx], terminated, truncated, self.buf_infos[env_idx] = self.envs[env_idx].step(  # type: ignore[assignment]
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/monitor.py", line 94, in step
+    observation, reward, terminated, truncated, info = self.env.step(action)
+  File "/home/ken2/PCD/envs/fetchReach.py", line 23, in step
+    custom_reward = self.custom_reward_function(next_obs, action, terminated, self.env)
+  File "/home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py", line 30, in custom_reward_function
+    current_position = obs['observation']  # Current position of the robotic arm
+IndexError: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
+
+[2025-04-09 16:13:01,667][root][WARNING] - Iteration 1/5: Training/Evaluation failed. Error logged.
+[2025-04-09 16:13:01,667][root][INFO] - Iteration 1/5: Logging results to /home/ken2/PCD/results/reach/2025-04-09/conversation_history.md

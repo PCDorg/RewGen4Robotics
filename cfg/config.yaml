@@ -1,10 +1,74 @@
+# @package _global_
 
-model : gpt-4o
-tempurature : 1.0
-task : Robodog_Walk 
-env : robodog_env
-task_description : to make our quadruped robot dog walk to a target postion.
+defaults:
+  - env: fetchReach # Default environment
+  - override /hydra/job_logging: disabled # Optional: disable Hydra's default logging structure if desired
+  - override /hydra/hydra_logging: disabled # Optional: disable Hydra's default logging structure if desired
 
+# General experiment settings
+iterations: ${experiment.iterations} # Use iterations from experiment section
+total_timesteps: ${env.timestamps} # Use timestamp from the selected env config
+eval_episodes: ${training.eval_episodes} # Use eval_episodes from training section
+# target_reward: 100.0 # Example target reward, may need adjustment per env (Removed, consider per-env target)
+final_training: ${experiment.final_training} # Use final_training from experiment section
+# selected_reward_function: "reward_function_4.py" # Example, which reward function to use for final training (Removed, usually determined by last iteration)
 
+# LLM settings (Moved to llm section below)
+# model: "gpt-4" # Or your preferred model
 
+# Paths (Consider making these relative or using Hydra variables if possible)
+# Note: Absolute paths might cause issues if the project is moved.
+# Using relative paths from the project root or Hydra's output directory is safer.
+# Example using Hydra's interpolation for output dirs:
+# results_base: ${hydra:runtime.output_dir} # Saves results relative to Hydra's output folder
+# prompt_base: utils/prompts # Relative path
 
+# --- Training settings (if needed globally, otherwise put in env configs) ---
+# Example: algorithm specific params (can be overridden by env config)
+# algorithm:
+#   name: SAC
+#   learning_rate: 3e-4
+#   buffer_size: 1000000
+#   batch_size: 256
+#   gamma: 0.99
+#   tau: 0.005
+
+# The 'env' settings will be loaded from the selected file in cfg/env/
+
+# Training parameters
+training:
+  algorithm: "SAC"  # RL algorithm to use
+  total_timesteps: 100000  # Training timesteps for each iteration
+  eval_episodes: 5  # Number of evaluation episodes
+  learning_rate: 0.0003
+  buffer_size: 1000000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  ent_coef: auto
+
+# Environment parameters (This section seems empty or misplaced, remove if not used)
+# llm_provider: groq          # Can be 'openai' or 'groq' (Moved to llm section)
+# model: llama3-8b-8192     # (Moved to llm section)
+
+# LLM parameters
+llm:
+  provider: groq          # Can be 'openai' or 'groq'
+  model: llama3-8b-8192   # Model name appropriate for the provider
+  temperature: 1
+  max_tokens: 2000
+  max_retries: 3
+
+# Experiment parameters
+experiment:
+  iterations: 5  # Number of iterative cycles for reward generation
+  final_training: false  # Whether to do final training after reward generation
+  save_frequency: 10000  # Save model every n timesteps
+  tensorboard_log: true  # Whether to log to tensorboard
+  verbose: 1  # Verbosity level
+
+# Paths
+paths:
+  results_dir: "results"  # Base directory for all run results
+  model_dir: "models"    # Base directory for all saved models
+# tensorboard_dir: "tensorboard_logs" # Removed, will be relative to run results

@@ -1,3 +1,0 @@
-[2025-02-22 19:41:34,383][root][INFO] - Generating samples with gpt-4o
-[2025-02-22 19:41:47,720][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-[2025-02-22 19:41:47,731][root][INFO] - Content saved to /home/ken2/PCD/results/code.txt and /home/ken2/PCD/results/text.txt

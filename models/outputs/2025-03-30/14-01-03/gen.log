@@ -1,0 +1,4 @@
+[2025-03-30 14:01:03,604][root][INFO] - Using results directory: /home/ken2/PCD/outputs/2025-03-30/14-01-03/results/2025-03-30
+[2025-03-30 14:01:03,604][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-03-30 14:01:03,605][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-03-30 14:01:03,605][root][INFO] - Generating new reward function with LLM...

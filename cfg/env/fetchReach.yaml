@@ -1,0 +1,9 @@
+# Environment specific configuration for FetchReach
+env_name: "FetchReachCustom-v0" # Custom env ID if registered, or a descriptive name
+task: "Reach a target location with the gripper."
+task_description: "The agent controls a Fetch robot arm. The goal is to move the end-effector (gripper) to a specific target position in 3D space. Observations include gripper position, velocity, and target position. Actions are displacements in 3D space."
+timestamps: 50000 # Example: Training timesteps for this specific environment
+# Add other env-specific parameters if needed, e.g.:
+# reward_type: "sparse" or "dense"
+# action_space_details: ...
+# observation_space_details: ... 

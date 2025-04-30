@@ -1,0 +1,64 @@
+[2025-03-31 01:04:08,578][root][INFO] - Using results directory: /home/ken2/PCD/results/reach/2025-03-31
+[2025-03-31 01:04:08,579][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-03-31 01:04:08,579][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-03-31 01:04:08,579][root][INFO] - Generating new reward function with LLM...
+[2025-03-31 01:04:08,582][root][INFO] - Sending request to OpenAI API...
+[2025-03-31 01:04:21,521][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-03-31 01:04:21,576][root][INFO] - Received response from LLM.
+[2025-03-31 01:04:21,577][root][INFO] - Iteration 1/5: Successfully generated and extracted reward code.
+[2025-03-31 01:04:21,577][root][INFO] - Iteration 1/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-03-31/reward_function_0.py
+[2025-03-31 01:04:21,578][root][INFO] - Iteration 1/5: Starting training and evaluation...
+[2025-03-31 01:04:21,579][root][INFO] - Iteration 1: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-03-31/reward_function_0.py
+[2025-03-31 01:04:21,946][root][INFO] - Iteration 1: Initializing PPO model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_0
+[2025-03-31 01:04:26,040][root][INFO] - Iteration 1: Starting training for 200000 timesteps...
+[2025-03-31 01:04:27,224][root][ERROR] - Error during training/evaluation in Iteration 1: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
+[2025-03-31 01:04:27,233][root][ERROR] - Traceback (most recent call last):
+  File "/home/ken2/PCD/gen.py", line 139, in train_and_evaluate
+    model.learn(total_timesteps=total_timesteps, tb_log_name="PPO", reset_num_timesteps=False)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/ppo/ppo.py", line 311, in learn
+    return super().learn(
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/on_policy_algorithm.py", line 323, in learn
+    continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/on_policy_algorithm.py", line 218, in collect_rollouts
+    new_obs, rewards, dones, infos = env.step(clipped_actions)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/vec_env/base_vec_env.py", line 207, in step
+    return self.step_wait()
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 59, in step_wait
+    obs, self.buf_rews[env_idx], terminated, truncated, self.buf_infos[env_idx] = self.envs[env_idx].step(  # type: ignore[assignment]
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/monitor.py", line 94, in step
+    observation, reward, terminated, truncated, info = self.env.step(action)
+  File "/home/ken2/PCD/envs/fetchReach.py", line 23, in step
+    custom_reward = self.custom_reward_function(next_obs, action, terminated, self.env)
+  File "/home/ken2/PCD/results/reach/2025-03-31/reward_function_0.py", line 22, in custom_reward_function
+    distance_to_goal = np.linalg.norm(obs['achieved_goal'] - goal)
+IndexError: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
+
+[2025-03-31 01:04:27,234][root][WARNING] - Iteration 1/5: Training/Evaluation failed. Error logged.
+[2025-03-31 01:04:27,234][root][INFO] - Iteration 1/5: Logging results to /home/ken2/PCD/results/reach/2025-03-31/conversation_history.md
+[2025-03-31 01:04:27,235][root][INFO] - ========== Finished Iteration 1/5 ==========
+
+[2025-03-31 01:04:27,235][root][INFO] - ========== Starting Iteration 2/5 ==========
+[2025-03-31 01:04:27,236][root][INFO] - Iteration 2/5: LLM Attempt 1/10
+[2025-03-31 01:04:27,236][root][INFO] - Generating new reward function with LLM...
+[2025-03-31 01:04:27,238][root][INFO] - Sending request to OpenAI API...
+[2025-03-31 01:04:43,782][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-03-31 01:04:43,815][root][INFO] - Received response from LLM.
+[2025-03-31 01:04:43,816][root][INFO] - Iteration 2/5: Successfully generated and extracted reward code.
+[2025-03-31 01:04:43,816][root][INFO] - Iteration 2/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-03-31/reward_function_1.py
+[2025-03-31 01:04:43,817][root][INFO] - Iteration 2/5: Starting training and evaluation...
+[2025-03-31 01:04:43,818][root][INFO] - Iteration 2: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-03-31/reward_function_1.py
+[2025-03-31 01:04:44,043][root][INFO] - Iteration 2: Initializing PPO model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_1
+[2025-03-31 01:04:44,053][root][INFO] - Iteration 2: Starting training for 200000 timesteps...
+[2025-03-31 02:16:09,557][root][INFO] - Iteration 2: Training complete.
+[2025-03-31 02:16:09,561][root][INFO] - Iteration 2: Saving trained model to: /home/ken2/PCD/results/reach/2025-03-31/ppo_model_1.zip
+[2025-03-31 02:16:09,595][root][INFO] - Iteration 2: Model saved successfully.
+[2025-03-31 02:16:09,596][root][WARNING] - Expected PPO log directory '/home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_1/PPO_1' not found. Reading from parent: /home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_1
+[2025-03-31 02:16:09,596][root][INFO] - Iteration 2: Reading scalars from TensorBoard log: /home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_1
+[2025-03-31 02:16:09,596][root][INFO] - Attempting to read TensorBoard logs from: /home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_1
+[2025-03-31 02:16:11,603][root][INFO] - Found scalar tags: []
+[2025-03-31 02:16:11,603][root][WARNING] - No scalar data found in /home/ken2/PCD/results/reach/2025-03-31/tensorboard_logs/iteration_1. Check if PPO logged correctly and training ran.
+[2025-03-31 02:16:11,604][root][INFO] - Scalar tag 'rollout/ep_rew_mean' not found or empty in TensorBoard data.
+[2025-03-31 02:16:11,604][root][WARNING] - Iteration 2: Could not extract 'rollout/ep_rew_mean' from TensorBoard.
+[2025-03-31 02:16:11,604][root][INFO] - Iteration 2: Starting evaluation for 5 episodes...
+[2025-03-31 02:16:15,856][root][INFO] - Iteration 2: Evaluation complete. Average reward over 5 episodes: -5.28
+[2025-03-31 02:16:15,915][root][INFO] - Iteration 2/5: Training/Evaluation successful.

@@ -1,0 +1,61 @@
+[2025-04-09 16:21:22,265][root][INFO] - Using results directory: /home/ken2/PCD/results/reach/2025-04-09
+[2025-04-09 16:21:22,267][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-04-09 16:21:22,267][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-04-09 16:21:22,268][root][INFO] - Generating new reward function with LLM...
+[2025-04-09 16:21:22,269][root][INFO] - Sending request to OpenAI API...
+[2025-04-09 16:21:44,675][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-04-09 16:21:44,750][root][INFO] - Received response from LLM.
+[2025-04-09 16:21:44,751][root][INFO] - Iteration 1/5: Successfully generated and extracted reward code.
+[2025-04-09 16:21:44,752][root][INFO] - Iteration 1/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py
+[2025-04-09 16:21:44,757][root][INFO] - Iteration 1/5: Starting training and evaluation...
+[2025-04-09 16:21:44,757][root][INFO] - Iteration 1: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py
+[2025-04-09 16:21:45,223][root][INFO] - Iteration 1: Initializing SAC model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0
+[2025-04-09 16:21:48,967][root][INFO] - Iteration 1: Starting training for 200 timesteps...
+[2025-04-09 16:24:31,979][root][INFO] - Iteration 1: Training complete.
+[2025-04-09 16:24:31,980][root][INFO] - Iteration 1: Saving trained model to: /home/ken2/PCD/results/reach/2025-04-09/sac_model_0.zip
+[2025-04-09 16:24:32,016][root][INFO] - Iteration 1: Model saved successfully.
+[2025-04-09 16:24:32,020][root][WARNING] - Expected sac log directory '/home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0/SAC_1' not found. Reading from parent: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0
+[2025-04-09 16:24:32,020][root][INFO] - Iteration 1: Reading scalars from TensorBoard log: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0
+[2025-04-09 16:24:32,020][root][INFO] - Attempting to read TensorBoard logs from: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0
+[2025-04-09 16:24:34,034][root][INFO] - Found scalar tags: []
+[2025-04-09 16:24:34,034][root][WARNING] - No scalar data found in /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0. Check if PPO logged correctly and training ran.
+[2025-04-09 16:24:34,035][root][INFO] - Scalar tag 'rollout/ep_rew_mean' not found or empty in TensorBoard data.
+[2025-04-09 16:24:34,035][root][WARNING] - Iteration 1: Could not extract 'rollout/ep_rew_mean' from TensorBoard.
+[2025-04-09 16:24:34,035][root][INFO] - Iteration 1: Starting evaluation for 5 episodes...
+[2025-04-09 16:24:38,249][root][INFO] - Iteration 1: Evaluation complete. Average reward over 5 episodes: -30.19
+[2025-04-09 16:24:38,318][root][INFO] - Iteration 1/5: Training/Evaluation successful.
+[2025-04-09 16:24:38,318][root][INFO] - Iteration 1/5: Logging results to /home/ken2/PCD/results/reach/2025-04-09/conversation_history.md
+[2025-04-09 16:24:38,319][root][INFO] - ========== Finished Iteration 1/5 ==========
+
+[2025-04-09 16:24:38,319][root][INFO] - ========== Starting Iteration 2/5 ==========
+[2025-04-09 16:24:38,319][root][INFO] - Iteration 2/5: LLM Attempt 1/10
+[2025-04-09 16:24:38,319][root][INFO] - Generating new reward function with LLM...
+[2025-04-09 16:24:38,322][root][INFO] - Sending request to OpenAI API...
+[2025-04-09 16:25:12,113][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-04-09 16:25:12,146][root][INFO] - Received response from LLM.
+[2025-04-09 16:25:12,146][root][INFO] - Iteration 2/5: Successfully generated and extracted reward code.
+[2025-04-09 16:25:12,147][root][INFO] - Iteration 2/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-04-09/reward_function_1.py
+[2025-04-09 16:25:12,148][root][INFO] - Iteration 2/5: Starting training and evaluation...
+[2025-04-09 16:25:12,148][root][INFO] - Iteration 2: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-04-09/reward_function_1.py
+[2025-04-09 16:25:12,482][root][INFO] - Iteration 2: Initializing SAC model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1
+[2025-04-09 16:25:12,503][root][INFO] - Iteration 2: Starting training for 200 timesteps...
+[2025-04-09 16:25:17,633][root][INFO] - Iteration 2: Training complete.
+[2025-04-09 16:25:17,633][root][INFO] - Iteration 2: Saving trained model to: /home/ken2/PCD/results/reach/2025-04-09/sac_model_1.zip
+[2025-04-09 16:25:17,654][root][INFO] - Iteration 2: Model saved successfully.
+[2025-04-09 16:25:17,654][root][WARNING] - Expected sac log directory '/home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1/SAC_1' not found. Reading from parent: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1
+[2025-04-09 16:25:17,654][root][INFO] - Iteration 2: Reading scalars from TensorBoard log: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1
+[2025-04-09 16:25:17,654][root][INFO] - Attempting to read TensorBoard logs from: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1
+[2025-04-09 16:25:19,657][root][INFO] - Found scalar tags: []
+[2025-04-09 16:25:19,657][root][WARNING] - No scalar data found in /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1. Check if PPO logged correctly and training ran.
+[2025-04-09 16:25:19,657][root][INFO] - Scalar tag 'rollout/ep_rew_mean' not found or empty in TensorBoard data.
+[2025-04-09 16:25:19,657][root][WARNING] - Iteration 2: Could not extract 'rollout/ep_rew_mean' from TensorBoard.
+[2025-04-09 16:25:19,657][root][INFO] - Iteration 2: Starting evaluation for 5 episodes...
+[2025-04-09 16:25:23,848][root][INFO] - Iteration 2: Evaluation complete. Average reward over 5 episodes: -27.09
+[2025-04-09 16:25:23,889][root][INFO] - Iteration 2/5: Training/Evaluation successful.
+[2025-04-09 16:25:23,889][root][INFO] - Iteration 2/5: Logging results to /home/ken2/PCD/results/reach/2025-04-09/conversation_history.md
+[2025-04-09 16:25:23,889][root][INFO] - ========== Finished Iteration 2/5 ==========
+
+[2025-04-09 16:25:23,890][root][INFO] - ========== Starting Iteration 3/5 ==========
+[2025-04-09 16:25:23,892][root][INFO] - Iteration 3/5: LLM Attempt 1/10
+[2025-04-09 16:25:23,892][root][INFO] - Generating new reward function with LLM...
+[2025-04-09 16:25:23,893][root][INFO] - Sending request to OpenAI API...

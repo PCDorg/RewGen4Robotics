@@ -1,0 +1,51 @@
+[2025-04-09 15:45:01,651][root][INFO] - Using results directory: /home/ken2/PCD/results/reach/2025-04-09
+[2025-04-09 15:45:01,653][root][INFO] - ========== Starting Iteration 1/5 ==========
+[2025-04-09 15:45:01,654][root][INFO] - Iteration 1/5: LLM Attempt 1/10
+[2025-04-09 15:45:01,654][root][INFO] - Generating new reward function with LLM...
+[2025-04-09 15:45:01,655][root][INFO] - Sending request to OpenAI API...
+[2025-04-09 15:45:25,260][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-04-09 15:45:25,323][root][INFO] - Received response from LLM.
+[2025-04-09 15:45:25,324][root][INFO] - Iteration 1/5: Successfully generated and extracted reward code.
+[2025-04-09 15:45:25,324][root][INFO] - Iteration 1/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py
+[2025-04-09 15:45:25,325][root][INFO] - Iteration 1/5: Starting training and evaluation...
+[2025-04-09 15:45:25,325][root][INFO] - Iteration 1: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py
+[2025-04-09 15:45:25,729][root][INFO] - Iteration 1: Initializing SAC model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_0
+[2025-04-09 15:45:30,158][root][INFO] - Iteration 1: Starting training for 200000 timesteps...
+[2025-04-09 15:45:33,491][root][ERROR] - Error during training/evaluation in Iteration 1: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
+[2025-04-09 15:45:33,570][root][ERROR] - Traceback (most recent call last):
+  File "/home/ken2/PCD/gen.py", line 139, in train_and_evaluate
+    model.learn(total_timesteps=total_timesteps, tb_log_name="SAC", reset_num_timesteps=False)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/sac/sac.py", line 308, in learn
+    return super().learn(
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/off_policy_algorithm.py", line 328, in learn
+    rollout = self.collect_rollouts(
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/off_policy_algorithm.py", line 560, in collect_rollouts
+    new_obs, rewards, dones, infos = env.step(actions)
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/vec_env/base_vec_env.py", line 222, in step
+    return self.step_wait()
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 59, in step_wait
+    obs, self.buf_rews[env_idx], terminated, truncated, self.buf_infos[env_idx] = self.envs[env_idx].step(  # type: ignore[assignment]
+  File "/home/ken2/.local/lib/python3.10/site-packages/stable_baselines3/common/monitor.py", line 94, in step
+    observation, reward, terminated, truncated, info = self.env.step(action)
+  File "/home/ken2/PCD/envs/fetchReach.py", line 23, in step
+    custom_reward = self.custom_reward_function(next_obs, action, terminated, self.env)
+  File "/home/ken2/PCD/results/reach/2025-04-09/reward_function_0.py", line 20, in custom_reward_function
+    distance_to_target = np.linalg.norm(obs['achieved_goal'] - env.unwrapped.goal)
+IndexError: only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or boolean arrays are valid indices
+
+[2025-04-09 15:45:33,571][root][WARNING] - Iteration 1/5: Training/Evaluation failed. Error logged.
+[2025-04-09 15:45:33,572][root][INFO] - Iteration 1/5: Logging results to /home/ken2/PCD/results/reach/2025-04-09/conversation_history.md
+[2025-04-09 15:45:33,576][root][INFO] - ========== Finished Iteration 1/5 ==========
+
+[2025-04-09 15:45:33,577][root][INFO] - ========== Starting Iteration 2/5 ==========
+[2025-04-09 15:45:33,578][root][INFO] - Iteration 2/5: LLM Attempt 1/10
+[2025-04-09 15:45:33,579][root][INFO] - Generating new reward function with LLM...
+[2025-04-09 15:45:33,593][root][INFO] - Sending request to OpenAI API...
+[2025-04-09 15:45:53,609][httpx][INFO] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2025-04-09 15:45:53,684][root][INFO] - Received response from LLM.
+[2025-04-09 15:45:53,684][root][INFO] - Iteration 2/5: Successfully generated and extracted reward code.
+[2025-04-09 15:45:53,684][root][INFO] - Iteration 2/5: Saving generated reward function to: /home/ken2/PCD/results/reach/2025-04-09/reward_function_1.py
+[2025-04-09 15:45:53,689][root][INFO] - Iteration 2/5: Starting training and evaluation...
+[2025-04-09 15:45:53,689][root][INFO] - Iteration 2: Creating environment with reward from: /home/ken2/PCD/results/reach/2025-04-09/reward_function_1.py
+[2025-04-09 15:45:54,228][root][INFO] - Iteration 2: Initializing SAC model. Logging TensorBoard to: /home/ken2/PCD/results/reach/2025-04-09/tensorboard_logs/iteration_1
+[2025-04-09 15:45:54,863][root][INFO] - Iteration 2: Starting training for 200000 timesteps...
