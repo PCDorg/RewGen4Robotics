@@ -6,7 +6,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from datetime import date, datetime
 import importlib
-from groq import Groq  # Add Groq import
+from groq import Groq
+import re
 
 from utils.file_to_string import file_to_string
 from utils.extracct_code import extract_code_from_response
@@ -80,6 +81,16 @@ def get_final_scalar_value(scalar_dict, tag_name):
         logging.info(f"Scalar tag '{tag_name}' not found or empty in TensorBoard data.")
         return None
 
+# Helper function to sanitize env names for use in paths
+def sanitize_path_component(name):
+    # Replace common problematic characters with underscores
+    # Allow alphanumeric, underscore, hyphen
+    name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
+    # Avoid starting or ending with underscore/hyphen if possible
+    name = name.strip('_-')
+    # Handle empty or invalid names after sanitization
+    if not name: return "unknown_env"
+    return name
 
 def get_llm_response(llm_provider, model, system_prompt_path, user_prompt_path, code_tip_path, cfg, feedback_content, previous_reward_code):
     logging.info(f"Generating new reward function with {llm_provider}...")
@@ -466,6 +477,35 @@ def main(cfg: DictConfig):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # --- Setup Run-Specific Directories --- #
+    # Get environment name from config - essential for directory structure
+    env_name_str = "unknown_env" # Initialize with fallback
+    try:
+        # Try to get a user-friendly name if available
+        env_name_raw = cfg.env.env_name
+        env_name_str = sanitize_path_component(env_name_raw)
+        logging.info(f"Determined environment name for paths: {env_name_str} (from cfg.env.env_name: '{env_name_raw}')")
+    except AttributeError:
+        logging.error("Could not determine environment name from cfg.env.env_name. Trying fallback...")
+        # Fallback logic
+        try:
+            if cfg._metadata and hasattr(cfg._metadata, 'defaults_list'):
+                for default_item in cfg._metadata.defaults_list:
+                    if isinstance(default_item, dict) and 'env' in default_item:
+                        potential_key = default_item['env']
+                        env_name_str = sanitize_path_component(potential_key) # Sanitize the key itself
+                        logging.info(f"Using fallback env name for paths: {env_name_str} (from defaults list key '{potential_key}')")
+                        break # Exit loop once found
+                # Check if fallback succeeded
+                if env_name_str == "unknown_env":
+                   logging.warning("Fallback failed to find env key in defaults list.")
+            else:
+                logging.warning("Could not access Hydra metadata for fallback env name determination.")
+        except Exception as e:
+            logging.error(f"Error during fallback env name determination: {e}. Using default '{env_name_str}'.")
+    except Exception as e:
+        # Catch any other unexpected errors during env name access
+        logging.error(f"Unexpected error determining environment name: {e}. Using default '{env_name_str}'.")
+
     # Generate a unique timestamp for this run
     run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -473,9 +513,9 @@ def main(cfg: DictConfig):
     base_results_dir = cfg.paths.results_dir
     base_models_dir = cfg.paths.model_dir
 
-    # Create unique directories for this run
-    current_run_results_dir = os.path.join(base_results_dir, run_timestamp)
-    current_run_models_dir = os.path.join(base_models_dir, run_timestamp)
+    # Create unique directories for this run: base/env_name/timestamp
+    current_run_results_dir = os.path.join(base_results_dir, env_name_str, run_timestamp)
+    current_run_models_dir = os.path.join(base_models_dir, env_name_str, run_timestamp)
     os.makedirs(current_run_results_dir, exist_ok=True)
     os.makedirs(current_run_models_dir, exist_ok=True)
 
@@ -568,16 +608,16 @@ def main(cfg: DictConfig):
 
              # Check for generic API error message
              if f"Error calling {llm_provider} API" in conversation_text:
-                   logging.error(f"{iteration_str}: LLM API call failed. Aborting iteration.")
-                   # Log failure details more concisely
-                   with open(conversation_file, "a", encoding="utf-8") as conv_file:
+                  logging.error(f"{iteration_str}: LLM API call failed. Aborting iteration.")
+                  # Log failure details more concisely
+                  with open(conversation_file, "a", encoding="utf-8") as conv_file:
                         conv_file.write(f"## {iteration_str}: Failed - {llm_provider.upper()} API Error\n")
                         conv_file.write(f"**Error:** `{conversation_text}`\n")
                         conv_file.write(f"**Attempted Prompt:**\n```\n{user_prompt_for_llm}\n```\n---\n\n")
-                   all_results_summary.append(f"Iter {i+1}: Failed - {llm_provider.upper()} API Error")
-                   # Ensure reward_function_code remains empty to trigger skip logic below
-                   reward_function_code = ""
-                   break # Exit the LLM attempt loop for this iteration
+                        all_results_summary.append(f"Iter {i+1}: Failed - {llm_provider.upper()} API Error")
+                  # Ensure reward_function_code remains empty to trigger skip logic below
+                  reward_function_code = ""
+                  break # Exit the LLM attempt loop for this iteration
 
              elif not reward_function_code:
                   logging.warning(f"{iteration_str}: Could not extract valid Python code from LLM response (Attempt {llm_attempts}).")
@@ -713,8 +753,9 @@ def main(cfg: DictConfig):
              conv_file.write(f"- TensorBoard Log Directory: `{relative_tb_path}`\n")
              if saved_model_path:
                  # Model path is now relative to the base models dir, log the run-specific model path
-                 relative_model_path = os.path.relpath(saved_model_path, current_run_models_dir)
-                 conv_file.write(f"- Saved Model: `{os.path.join(os.path.basename(current_run_models_dir), relative_model_path)}` (in base models folder)\n")
+                 # Path relative to workspace root: models/env_name/timestamp/model_iter_N.zip
+                 workspace_rel_model_path = os.path.relpath(saved_model_path, os.getcwd()) # Or adjust base path if needed
+                 conv_file.write(f"- Saved Model: `{workspace_rel_model_path}`\n")
              else:
                  conv_file.write("- Saved Model: Failed or Skipped\n")
              conv_file.write(f"- Average Evaluation Reward: `{eval_reward_str}`\n")
@@ -740,8 +781,8 @@ def main(cfg: DictConfig):
     else:
          for result_line in all_results_summary:
               logging.info(f"  {result_line}")
-    logging.info(f"Detailed logs and artifacts for run {run_timestamp} saved in: {current_run_results_dir}")
-    logging.info(f"Models for run {run_timestamp} saved in: {current_run_models_dir}")
+    logging.info(f"Detailed logs and artifacts for run {run_timestamp} (env: {env_name_str}) saved in: {current_run_results_dir}")
+    logging.info(f"Models for run {run_timestamp} (env: {env_name_str}) saved in: {current_run_models_dir}")
 
 
 if __name__ == "__main__" :

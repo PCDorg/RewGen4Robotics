@@ -1,4 +1,0 @@
-task : Robodog_Walk 
-env : robodog_env
-description : to make our quadruped robot dog walk to a target postion.
-
