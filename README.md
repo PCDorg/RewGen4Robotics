@@ -27,6 +27,8 @@ This project integrates Reinforcement Learning (RL), specifically Soft Actor-Cri
     ```
 
 3.  **Install Dependencies**:
+    
+    ```bash
     pip install -r requirements.txt
     ```
     *(Note: If `requirements.txt` doesn't exist, you'll need to create one based on the project's imports.)*
