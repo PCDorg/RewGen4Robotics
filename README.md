@@ -15,8 +15,8 @@ This project integrates Reinforcement Learning (RL), specifically Soft Actor-Cri
 
 1.  **Clone the Repository**:
     ```bash
-    git clone <your-repository-url>
-    cd <your-repository-name>
+    git clone https://github.com/PCDorg/RewGen4Robotics.git
+    cd RewGen4Robotics
     ```
 
 2.  **Create and Activate Virtual Environment** (Recommended):
