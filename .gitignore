@@ -1,0 +1,36 @@
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env
+
+# Output directories
+outputs/
+results/ # If you use this directory name elsewhere
+models/
+
+# Specific scripts to ignore
+train_offline.py
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Sensitive information (if any, like API key files)
+# .env # Example if you use a .env file for keys
+# secrets.yaml # Example
+
+# Log files (if generated outside 'outputs')
+*.log 

@@ -3,3 +3,6 @@ hydra-core
 stable-baselines3
 mujoco
 groq
+gymnasium
+numpy
+tensorboard

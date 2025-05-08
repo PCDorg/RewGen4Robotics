@@ -58,16 +58,19 @@ python gen.py training.total_timesteps=50000 llm.model="llama3-70b-8192" llm.pro
 
 ## Usage
 
-The main script (e.g., `gen.py`) orchestrates the iterative process:
+**Iterative Training with LLM (`gen.py`)**
+
+The main script (`gen.py`) orchestrates the iterative process:
 
 1.  **Run with Default Configuration**:
     ```bash
-    python gen.py
+    # Ensure correct environment is set via defaults or command line
+    python gen.py env=go1 # Or env=fetchReach, etc.
     ```
 
 2.  **Run with Overrides**:
     ```bash
-    python gen.py experiment.iterations=5 training.learning_rate=1e-4
+    python gen.py experiment.iterations=5 training.learning_rate=1e-4 llm.provider=openai llm.model=gpt-4
     ```
 
 The script typically performs the following loop for the specified number of iterations:
@@ -76,6 +79,7 @@ The script typically performs the following loop for the specified number of ite
 - Trains the SAC agent using the current reward function.
 - Saves the trained model, logs, and generated reward function.
 - Potentially uses results from the training run to inform the next LLM generation step.
+
 
 ## Directory Structure (Example)
 
@@ -121,10 +125,6 @@ tensorboard --logdir results/reach/tensorboard_logs
 Navigate to `http://localhost:6006` in your browser.
 
 
-
-## License
-
-[Specify Your License Here - e.g., MIT, Apache 2.0]
 
 ## Acknowledgments
 

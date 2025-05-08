@@ -8,15 +8,18 @@ from datetime import date, datetime
 import importlib
 from groq import Groq
 import re
+import numpy as np
+from pathlib import Path
 
 from utils.file_to_string import file_to_string
 from utils.extracct_code import extract_code_from_response
 import gymnasium as gym
 from stable_baselines3 import SAC
 from stable_baselines3.common.monitor import Monitor
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from tensorboard.backend.event_processing import event_accumulator
 import traceback
 import time
+from stable_baselines3.common.callbacks import BaseCallback
 
 # Dictionary to map env names (from config) to their factory functions and modules
 ENV_FACTORIES = {
@@ -42,43 +45,102 @@ def get_env_factory(env_name):
         logging.error(f"Could not find factory function {func_name} in module {module_name}: {e}")
         raise
 
+# --- Add Callback Definition --- #
+class ProgressCallback(BaseCallback):
+    """
+    A simple callback that logs progress during training.
+    """
+    def __init__(self, check_freq: int, verbose: int = 1):
+        super().__init__(verbose)
+        self.check_freq = check_freq
+        self._last_log_step = 0
+
+    def _on_step(self) -> bool:
+        """Log progress every check_freq steps."""
+        # Check if it's time to log (or first step)
+        if self.num_timesteps % self.check_freq == 0 or self.num_timesteps == 1:
+            # Avoid logging the same step multiple times if check_freq is small or steps are skipped
+            if self.num_timesteps > self._last_log_step:
+                total_steps = self.model.num_timesteps # Get total timesteps from the model if available
+                if hasattr(self.training_env, 'spec') and self.training_env.spec is not None:
+                    max_steps = self.training_env.spec.max_episode_steps
+                else:
+                    # Fallback if max_episode_steps isn't available directly
+                    max_steps = getattr(self.model, 'total_timesteps', '?') # Or use the planned total if spec missing
+
+                logging.info(f"  Training Progress: Timestep {self.num_timesteps}/{total_steps}")
+                self._last_log_step = self.num_timesteps
+        return True # Continue training
+# --- End Callback Definition --- #
+
 def get_all_scalars(tb_log_dir):
     """Reads all scalar data from a TensorBoard log directory."""
     try:
-        logging.info(f"Attempting to read TensorBoard logs from: {tb_log_dir}")
-        # Add a small delay for filesystem sync, especially on networked drives
-        time.sleep(2)
+        logging.info(f"Waiting 3 seconds for filesystem sync before reading: {tb_log_dir}")
+        time.sleep(3)
+
         if not os.path.exists(tb_log_dir):
             logging.warning(f"TensorBoard log directory does not exist: {tb_log_dir}")
             return {}
-        event_acc = EventAccumulator(tb_log_dir)
-        event_acc.Reload() # Load data
+
+        logging.info(f"Initializing EventAccumulator for: {tb_log_dir}")
+        try:
+            ea = event_accumulator.EventAccumulator(
+                tb_log_dir,
+                size_guidance={event_accumulator.SCALARS: 0}
+            )
+            ea.Reload()
+            logging.info(f"EventAccumulator loaded successfully for: {tb_log_dir}")
+        except Exception as ea_e:
+             logging.error(f"Failed to initialize or load EventAccumulator for {tb_log_dir}: {ea_e}")
+             logging.error(traceback.format_exc())
+             return {}
+
         scalar_dict = {}
-        tags = event_acc.Tags().get('scalars', [])
-        logging.info(f"Found scalar tags: {tags}")
+        tags = ea.Tags().get('scalars', [])
+        logging.info(f"Found scalar tags in {tb_log_dir}: {tags}")
+
+        if not tags:
+             logging.warning(f"No scalar tags found in {tb_log_dir}. Ensure training ran and generated logs.")
+             return {}
+
         for tag in tags:
-            # Store pairs of (step, value)
-            scalar_dict[tag] = [(s.step, s.value) for s in event_acc.Scalars(tag)]
+            try:
+                scalar_events = ea.Scalars(tag)
+                scalar_dict[tag] = [(s.step, s.value) for s in scalar_events]
+                logging.debug(f"Read {len(scalar_dict[tag])} events for tag '{tag}'")
+            except Exception as tag_e:
+                 logging.error(f"Error reading data for tag '{tag}' in {tb_log_dir}: {tag_e}")
+                 scalar_dict[tag] = []
+
         if not scalar_dict:
-            logging.warning(f"No scalar data found in {tb_log_dir}. Check if SAC logged correctly and training ran.")
+            logging.warning(f"No scalar data could be extracted despite finding tags in {tb_log_dir}. Check log file integrity.")
+
         return scalar_dict
     except Exception as e:
-        logging.error(f"Error reading TensorBoard logs from {tb_log_dir}: {e}\n{traceback.format_exc()}")
+        logging.error(f"Unexpected error reading TensorBoard logs from {tb_log_dir}: {e}\n{traceback.format_exc()}")
         return {}
 
 def get_final_scalar_value(scalar_dict, tag_name):
     """Gets the latest value for a specific scalar tag."""
     if tag_name in scalar_dict and scalar_dict[tag_name]:
-        # Sort by step (just in case) and return the last value
         try:
-            sorted_scalars = sorted(scalar_dict[tag_name], key=lambda x: x[0])
-            return sorted_scalars[-1][1] # Return the value of the last entry
+            valid_scalars = [(step, value) for step, value in scalar_dict[tag_name] if np.isfinite(value)]
+            if not valid_scalars:
+                 logging.warning(f"Scalar tag '{tag_name}' contained only non-finite (NaN/inf) values.")
+                 return None
+            sorted_scalars = sorted(valid_scalars, key=lambda x: x[0])
+            final_value = sorted_scalars[-1][1]
+            logging.info(f"Final value for tag '{tag_name}': {final_value:.4f} at step {sorted_scalars[-1][0]}")
+            return final_value
         except IndexError:
-            logging.warning(f"Scalar tag '{tag_name}' was found but contained no data.")
+             logging.warning(f"Scalar tag '{tag_name}' was found but contained no valid finite data after filtering.")
+             return None
+        except Exception as e:
+             logging.error(f"Error processing scalar tag '{tag_name}': {e}")
             return None
     else:
-        # Reduced severity from warning to info as missing tags can be expected if logging changes
-        logging.info(f"Scalar tag '{tag_name}' not found or empty in TensorBoard data.")
+        logging.info(f"Scalar tag '{tag_name}' not found or empty in provided scalar_dict.")
         return None
 
 # Helper function to sanitize env names for use in paths
@@ -109,53 +171,134 @@ def get_llm_response(llm_provider, model, system_prompt_path, user_prompt_path, 
     env_details_str = "\n".join([f"- {k}: {v}" for k, v in env_details_dict.items()])
 
     # --- Add Observation Space Details --- #
-    observation_details_str = "Observation space structure not available."
-    # Try to get env_key to check if it's go1
+    # Determine the environment key to provide specific observation details
+    # This logic mirrors the key determination in train_and_evaluate for consistency
     env_key = None
+    try:
     if cfg._metadata and hasattr(cfg._metadata, 'defaults_list'):
         for default_item in cfg._metadata.defaults_list:
             if isinstance(default_item, dict) and 'env' in default_item:
-                env_key = default_item['env']
+                    potential_key = default_item['env']
+                    if potential_key in ENV_FACTORIES: # Check if it's a known key
+                        env_key = potential_key
                 break
+        if not env_key and hasattr(cfg, 'env') and hasattr(cfg.env, 'env_name'):
+             env_name_from_cfg = cfg.env.env_name.lower()
+             possible_matches = [key for key in ENV_FACTORIES if key.lower() in env_name_from_cfg]
+             if len(possible_matches) >= 1:
+                  env_key = possible_matches[0] # Use first match if ambiguous or unique
+    except Exception as e:
+         logging.warning(f"Could not robustly determine env_key for prompt generation: {e}. Proceeding with generic observation details.")
+         env_key = None # Ensure it's None if determination failed
+
+    # Initialize observation details string
+    observation_details_str = "Observation details are environment-specific. Ensure reward function correctly interprets the 'obs' structure."
+
     # If it is go1, provide the specific structure
     if env_key == 'go1':
-        # Keys based on Go2Env.py _get_obs method
-        go1_obs_keys = [
-            "linear_velocity", "angular_velocity", "projected_gravity",
-            "desired_velocity", "dofs_position", "dofs_velocity", "last_action"
-        ]
         observation_details_str = (
-            f"The observation ('obs') passed to the reward function is a dictionary representing the state *after* the action was taken.\n"
-            f"Access its components using these string keys: {go1_obs_keys}\n"
-            f"  - `obs['linear_velocity']`: Current velocity [vx, vy, vz] of the robot base.\n"
-            f"  - `obs['angular_velocity']`: Current angular velocity [wx, wy, wz] of the robot base.\n"
-            f"  - `obs['projected_gravity']`: Gravity vector projected onto the robot's base frame [gx, gy, gz]. Useful for orientation penalties (penalize non-zero gx, gy).\n"
-            f"  - `obs['dofs_position']`: Current joint positions (relative to default).\n"
-            f"  - `obs['dofs_velocity']`: Current joint velocities.\n"
-            f"  - `obs['last_action']`: The action taken in the previous step.\n"
-            f"Example: `forward_velocity = obs['linear_velocity'][0]`\n"
-            f"\nTARGET VELOCITY: The target/goal velocity for the Go1 environment can be accessed directly from the environment object using `env.desired_velocity`.\n"
-            f"Use `env.desired_velocity` to get the target [vx, vy, wz] vector.\n"
-            f"Example: `target_vx = env.desired_velocity[0]`\n"
-            f"\nIMPORTANT: Do NOT use 'velocity' or 'base_velocity' as keys - these do not exist. Use 'linear_velocity'.\n"
-            f"\nREWARD FUNCTION SIGNATURE: `def custom_reward_function(obs, action, done, env):`\n"
-            f"  - `obs`: The dictionary described above (state *after* action).\n"
-            f"  - `action`: The action taken in the current step.\n"
-            f"  - `done`: Boolean indicating if the episode terminated due to failure conditions (e.g., falling). Time limits are handled separately.\n"
-            f"  - `env`: The environment instance, useful for accessing things like `env.desired_velocity`."
+            "**IMPORTANT: Observation Space Structure (Go1 Environment)**\n"
+            "The 'obs' argument passed to the function is a Python **dictionary**, representing the state *after* the action was taken.\n"
+            "Access its components using these string keys:\n"
+            "  - `obs['linear_velocity']`: Current base linear velocity [vx, vy, vz] (NumPy array).\n"
+            "  - `obs['angular_velocity']`: Current base angular velocity [wx, wy, wz] (NumPy array).\n"
+            "  - `obs['projected_gravity']`: Gravity vector projected onto base frame [gx, gy, gz] (NumPy array). Useful for orientation penalties.\n"
+            "  - `obs['dofs_position']`: Current joint positions (relative to default) (NumPy array).\n"
+            "  - `obs['dofs_velocity']`: Current joint velocities (NumPy array).\n"
+            "  - `obs['last_action']`: The action (torques) taken in the previous step (NumPy array).\n"
+            "\n**Accessing Data:**\n"
+            "- Use dictionary key access, e.g., `current_lin_vel = obs['linear_velocity']`. \n"
+            "- Remember that values like velocity might be scaled; check the environment code if needed, but accessing `env.data.qvel` might provide unscaled values directly.\n"
+            "- Do NOT use array slicing (e.g., `obs[0:3]`) as `obs` is a dictionary.\n"
+            "\n**Target Velocity:**\n"
+            "- Access the target velocity vector [vx, vy, wz] using `env.desired_velocity`.\n"
+            "\n**Available Environment Attributes/Methods in `env`:**\n"
+            "You can access useful attributes from the `env` object:\n"
+            "  - `env.desired_velocity`: Target velocity [vx, vy, wz] (unscaled).\n"
+            "  - `env.dt`: Simulation timestep.\n"
+            "  - `env.data.qvel`: Full velocity vector [base_linear, base_angular, joint_velocities] (unscaled).\n"
+            "  - `env.is_healthy`: Boolean indicating if the robot is stable (check height/orientation limits).\n"
+            "  - `env.non_flat_base_cost`: Property for non-flat base penalty.\n"
+            "  - `env.torque_cost`: Property for torque penalty.\n"
+            "  - (And others listed in the original Go1MujocoEnv code example...)\n"
+            "\n**Reward Objectives:**\n"
+            "Create a reward function that encourages:\n"
+            "  1. **Velocity Tracking:** Match desired linear (XY) and angular (Z) velocity (`env.desired_velocity`) using current velocities (`obs['linear_velocity']`, `obs['angular_velocity']`).\\n"
+            "  2. **Forward Progress:** Reward actual forward velocity (`obs['linear_velocity'][0]`) ONLY when desired forward velocity (`env.desired_velocity[0]`) is positive.\\n"
+            "  3. **Stability:** Reward staying healthy (`env.is_healthy`) AND penalize non-flat orientation (use `env.non_flat_base_cost`). Consider adding a small constant 'alive' bonus per step.\\n"
+            "  4. **Efficiency/Smoothness:** Penalize high torques (`env.torque_cost`), high joint velocities (`obs['dofs_velocity']`), and potentially high joint accelerations (`env.data.qacc[6:]` if needed, but focus on torque/velocity first).\\n"
+            "\n**Implementation Guidance:**\n"
+            "- **Use Explicit Weights:** Define weights (e.g., `W_FORWARD = 1.5`, `W_TORQUE = -0.0002`) for each component and sum the weighted terms. This is better than implicit scaling.\\n"
+            "- **Return Value:** Ensure the function returns a single float value. Returning `None` or `NaN` will cause errors.\\n"
+            "\n**Reference: Original Reward Logic (Example):**\n"
+            "```python\\n"
+            "# --- Define Weights --- \\n"
+            "W_LINEAR_VEL = 2.0\\n"
+            "W_ANGULAR_VEL = 1.0\\n"
+            "W_FORWARD = 1.5\\n"
+            "W_STABILITY = 1.0 # For env.is_healthy check\\n"
+            "W_ALIVE = 0.05 # Small bonus per step\\n"
+            "W_ORIENT = -1.0 # Penalty for non-flat base\\n"
+            "W_TORQUE = -0.0002 # Penalty for torque\\n"
+            "W_JOINT_VEL = -0.01 # Penalty for joint velocity\\n"
+            "\\n"
+            "# --- Get Data --- \\n"
+            "current_lin_vel = obs['linear_velocity']\\n"
+            "current_ang_vel = obs['angular_velocity']\\n"
+            "joint_velocities = obs['dofs_velocity']\\n"
+            "\\n"
+            "# --- Calculate Components --- \\n"
+            "# Velocity Tracking\\n"
+            "lin_vel_error = np.sum(np.square(env.desired_velocity[:2] - current_lin_vel[:2]))\\n"
+            "ang_vel_error = np.square(env.desired_velocity[2] - current_ang_vel[2])\\n"
+            "linear_tracking_reward = np.exp(-lin_vel_error / 0.25) # Sigma = 0.25\\n"
+            "angular_tracking_reward = np.exp(-ang_vel_error / 0.25)\\n"
+            "\\n"
+            "# Forward Progress\\n"
+            "current_forward_vel = obs['linear_velocity'][0]\\n"
+            "forward_progress_reward = W_FORWARD * current_forward_vel if env.desired_velocity[0] > 0.1 else 0.0\\n"
+            "\\n"
+            "# Stability\\n"
+            "stability_reward = W_STABILITY if env.is_healthy else 0.0 # Reward for being healthy\\n"
+            "alive_bonus = W_ALIVE # Constant bonus per step\\n"
+            "orientation_penalty = W_ORIENT * env.non_flat_base_cost\\n"
+            "\\n"
+            "# Efficiency/Smoothness\\n"
+            "torque_penalty = W_TORQUE * env.torque_cost\\n"
+            "joint_vel_penalty = W_JOINT_VEL * np.sum(np.square(joint_velocities))\\n"
+            "\\n"
+            "# --- Combine Terms --- \\n"
+            "reward = ( \\n"
+            "    linear_tracking_reward * W_LINEAR_VEL + \\n"
+            "    angular_tracking_reward * W_ANGULAR_VEL + \\n"
+            "    forward_progress_reward + \\n"
+            "    stability_reward + \\n"
+            "    alive_bonus + \\n"
+            "    orientation_penalty + \\n"
+            "    torque_penalty + \\n"
+            "    joint_vel_penalty \\n"
+            ")\\n"
+            "```"
         )
     elif env_key == 'fetchReach': # Example for FetchReach if needed
         observation_details_str = (
-             f"The observation ('obs') passed to the reward function is a dictionary.\n"
-             f"Keys include: 'observation', 'achieved_goal', 'desired_goal'.\n"
-             f"Example: `gripper_pos = obs['observation'][0:3]`\n"
-             f"TARGET POSITION: Access the desired goal position using `env.unwrapped.goal`."
+             "The observation ('obs') passed to the reward function is a dictionary.\n"
+             "Keys include: 'observation', 'achieved_goal', 'desired_goal'. \n"
+             "Example: `gripper_pos = obs['observation'][0:3]` \n"
+             "TARGET POSITION: Access the desired goal position using `env.unwrapped.goal`."
         )
     elif env_key == 'antmaze': # Example for AntMaze
          observation_details_str = (
-             f"The observation ('obs') passed to the reward function is likely a numpy array.\n"
-             f"Consult the specific AntMaze variant documentation for the exact structure and how to access goal information."
+             "The observation ('obs') passed to the reward function for AntMaze variants is often a NumPy array.\n"
+             "Consult the specific AntMaze variant documentation for the exact structure and how to access goal information."
              # Or provide a known structure if available
+         )
+    else:
+         logging.warning(f"No specific observation details provided in prompt logic for environment key: {env_key}")
+         # Keep the default generic message
+         observation_details_str = (
+              "Observation details are environment-specific. "
+              "Ensure reward function correctly interprets the 'obs' structure."
          )
     # --- End Add Observation Space Details --- #
 
@@ -259,6 +402,7 @@ def train_and_evaluate(cfg, py_reward_path, tb_log_dir_iter, results_folder_iter
     avg_eval_reward = None
     error_message = None
     model_save_path = None
+    env = None # Initialize env to None
 
     try:
         # --- Determine Environment Factory Key (Revised Logic) ---
@@ -323,14 +467,18 @@ def train_and_evaluate(cfg, py_reward_path, tb_log_dir_iter, results_folder_iter
 
         try:
             # Pass collected kwargs (including render_mode)
-            env = env_factory(reward_function_path=py_reward_path, **env_kwargs)
+            env_instance = env_factory(reward_function_path=py_reward_path, **env_kwargs)
+            # Wrap with Monitor for SB3 logging
+            env = Monitor(env_instance)
+            logging.info(f"Environment '{matched_key}' created and wrapped with Monitor.")
         except Exception as env_e:
-            logging.error(f"Error creating environment '{matched_key}' with factory {ENV_FACTORIES[matched_key][1]}: {env_e}")
-            logging.error(traceback.format_exc()) # Log full traceback for env creation error
+            logging.error(f"Error creating environment '{matched_key}': {env_e}")
+            logging.error(traceback.format_exc())
+            # Set specific error message for feedback
+            error_message = f"Failed to create environment '{matched_key}'. Check factory and reward function compatibility. Error: {env_e}"
+            raise # Re-raise to stop the iteration
 
         # --- End Dynamic Environment Creation ---
-
-        env = Monitor(env)
 
         logging.info(f"Iteration {iteration+1}: Initializing SAC model. Logging TensorBoard to: {tb_log_dir_iter}")
         # Use total_timesteps from the global config (which interpolates from env config)
@@ -346,107 +494,141 @@ def train_and_evaluate(cfg, py_reward_path, tb_log_dir_iter, results_folder_iter
 
         model = SAC("MultiInputPolicy", env, verbose=0, tensorboard_log=tb_log_dir_iter)
 
-        logging.info(f"Iteration {iteration+1}: Starting training for {total_timesteps} timesteps...")
-        model.learn(total_timesteps=total_timesteps, tb_log_name="SAC", reset_num_timesteps=False)
-        logging.info(f"Iteration {iteration+1}: Training complete.")
+        # --- Instantiate Callback --- #
+        log_freq = cfg.get('log_freq', 10000) # Get logging frequency from config, default 10k
+        progress_callback = ProgressCallback(check_freq=log_freq)
+        # --- End Instantiate Callback --- #
 
+        logging.info(f"Iteration {iteration+1}: Starting training for {total_timesteps} timesteps... (Logging progress every {log_freq} steps)")
+        # --- Training with Error Handling for Reward ---
+        try:
+            # --- Pass Callback to model.learn --- #
+            model.learn(total_timesteps=total_timesteps, tb_log_name="SAC", reset_num_timesteps=False, callback=progress_callback)
+            # --- End Pass Callback --- #
+            logging.info(f"Iteration {iteration+1}: Training finished normally.")
+        except (TypeError, ValueError) as reward_error:
+             # Catch errors potentially caused by non-numeric rewards during SB3 updates
+             if "unhashable type" in str(reward_error) or "must be real number" in str(reward_error) or "numpy() argument must be" in str(reward_error):
+                 logging.error(f"Iteration {iteration+1}: Training stopped likely due to invalid reward value returned by custom function: {reward_error}")
+                 error_message = f"Training failed: Custom reward function returned non-numeric value ({type(reward_error).__name__}: {reward_error}). Check reward calculation logic."
+                 logging.error(traceback.format_exc()) # Log full traceback for debugging
+                 # Skip saving and evaluation if training failed due to bad reward
+             else:
+                 # Re-raise other unexpected TypeErrors/ValueErrors
+                 logging.error(f"Iteration {iteration+1}: Unexpected training error: {reward_error}")
+                 error_message = f"Unexpected Training Error: {reward_error}"
+                 logging.error(traceback.format_exc())
+                 raise reward_error # Re-raise to stop iteration
+
+        except Exception as train_e:
+             # Catch other potential training errors
+             logging.error(f"Iteration {iteration+1}: Training failed with unexpected error: {train_e}")
+             error_message = f"Unexpected Training Error: {train_e}"
+             logging.error(traceback.format_exc())
+             raise train_e # Re-raise other errors
+
+        # --- End Training with Error Handling ---
+
+        # Only proceed to save/evaluate if training didn't raise a critical error
+        if error_message and "Training failed: Custom reward function" in error_message:
+            logging.warning("Skipping model saving and evaluation due to invalid reward function error during training.")
+        else:
+            # Save Model
         model_save_path = os.path.join(results_folder_iter, f"sac_model_{iteration}.zip")
         logging.info(f"Iteration {iteration+1}: Saving trained model to: {model_save_path}")
-        try:
-            model.save(model_save_path)
-            logging.info(f"Iteration {iteration+1}: Model saved successfully.")
+            try: model.save(model_save_path)
         except Exception as save_e:
             logging.error(f"Iteration {iteration+1}: Failed to save model: {save_e}")
-            model_save_path = None
+                model_save_path = None # Mark as not saved
 
-
-        # Determine the specific SAC log path (usually env_name/SAC_1 or just SAC_1)
-        potential_log_path = os.path.join(tb_log_dir_iter, "SAC_1")
-        if not os.path.exists(potential_log_path):
-             # Sometimes it might just be the tb_log_dir_iter itself if tb_log_name wasn't used as subdir
+            # Read Scalars (improved logging inside function)
+            sac_log_path = os.path.join(tb_log_dir_iter, "SAC_1")
+            if not os.path.exists(sac_log_path):
              if os.path.exists(tb_log_dir_iter) and any(f.startswith('events.out.tfevents') for f in os.listdir(tb_log_dir_iter)):
                 sac_log_path = tb_log_dir_iter
-                logging.warning(f"SAC_1 subdir not found, but events file found in parent: {tb_log_dir_iter}. Reading from parent.")
+                     logging.info(f"Reading TB scalars from parent directory: {sac_log_path}")
              else:
-                 sac_log_path = tb_log_dir_iter # Still use parent path for error reporting
-                 logging.warning(f"Expected SAC log directory '{potential_log_path}' not found, and no events file in parent {tb_log_dir_iter}. Reading attempt may fail.")
+                     sac_log_path = tb_log_dir_iter
+                     logging.warning(f"TB directory '{potential_log_path}' or parent '{tb_log_dir_iter}' seems empty or missing. Check SB3 logging setup (tensorboard_log path, tb_log_name='SAC'). Reading attempt may fail.")
         else:
-             sac_log_path = potential_log_path
+                 logging.info(f"Reading TB scalars from: {sac_log_path}")
 
-
-        logging.info(f"Iteration {iteration+1}: Reading scalars from TensorBoard log: {sac_log_path}")
         scalar_data = get_all_scalars(sac_log_path)
         final_train_reward = get_final_scalar_value(scalar_data, 'rollout/ep_rew_mean')
+            if final_train_reward is None:
+                 logging.warning(f"Iteration {iteration+1}: Could not extract final 'rollout/ep_rew_mean' from {sac_log_path}. Check tag name and log file contents.")
 
-        if final_train_reward is not None:
-            logging.info(f"Iteration {iteration+1}: Final training mean episode reward (from TB): {final_train_reward:.2f}")
-        else:
-            logging.warning(f"Iteration {iteration+1}: Could not extract 'rollout/ep_rew_mean' from TensorBoard logs at {sac_log_path}.")
-
-
+            # Evaluation
         logging.info(f"Iteration {iteration+1}: Starting evaluation for {cfg.eval_episodes} episodes...")
-        # Use the same monitored env for evaluation (it resets automatically)
-        eval_env = env
+            eval_env = env # Re-use the monitored env
         total_reward = 0.0
         num_successful_evals = 0
-
         for ep in range(cfg.eval_episodes):
             obs, info = eval_env.reset()
             done = False
             ep_reward = 0.0
             step_count = 0
-            # Get max_steps from Monitor wrapper if available, else default
-            max_steps = getattr(env, '_max_episode_steps', 1000)
-
             while not done:
                 action, _ = model.predict(obs, deterministic=True)
                 try:
                     obs, reward, terminated, truncated, info = eval_env.step(action)
-                     # Check done flags from Monitor (info['TimeLimit.truncated']) if direct flags unreliable
-                     # done = terminated or truncated
+                         # --- Check for non-numeric reward during eval ---
+                         if not isinstance(reward, (int, float)) or not np.isfinite(reward):
+                              logging.error(f"Evaluation Step Error: Reward function returned non-numeric value: {reward} (type: {type(reward)})")
+                              # Provide specific error message for feedback
+                              error_message = f"Evaluation failed: Reward function returned non-numeric value '{reward}' (type: {type(reward)})."
+                              ep_reward = -float('inf') # Mark episode as failed
+                              done = True # End episode
+                              continue # Skip rest of step logic
+                         # --- End Check ---
                     done = info.get('TimeLimit.truncated', False) or terminated or truncated
-
                     ep_reward += reward
                     step_count += 1
-                     # Optional: Add step limit check if Monitor doesn't handle it via TimeLimit wrapper
-                     # if step_count >= max_steps:
-                     #     done = True # Truncate if step limit reached
                 except Exception as step_e:
                      logging.error(f"Error during evaluation step {step_count} in episode {ep+1}: {step_e}")
                      logging.error(traceback.format_exc())
-                     done = True # End episode on error
-                     ep_reward = -float('inf') # Penalize episodes ending in error
+                          # Provide specific error message for feedback
+                          error_message = f"Evaluation failed during env.step(): {step_e}"
+                          ep_reward = -float('inf') # Mark episode as failed
+                          done = True # End episode
 
-            # Only count reward if episode didn't end due to error
             if ep_reward > -float('inf'):
                 total_reward += ep_reward
                 num_successful_evals += 1
             else:
-                 logging.warning(f"Episode {ep+1} ended due to an error, excluding from average reward calculation.")
-
+                     logging.warning(f"Episode {ep+1} failed (reward={ep_reward}), excluding from average reward calculation.")
 
         if num_successful_evals > 0:
              avg_eval_reward = total_reward / num_successful_evals
              logging.info(f"Iteration {iteration+1}: Evaluation complete. Average reward over {num_successful_evals}/{cfg.eval_episodes} successful episodes: {avg_eval_reward:.2f}")
         else:
              logging.error(f"Iteration {iteration+1}: No evaluation episodes completed successfully.")
-             avg_eval_reward = None
-
-        # Close the environment
-        try:
-             env.close()
-        except Exception as close_e:
-             logging.warning(f"Error closing environment: {close_e}")
+                 # Keep existing error message if one occurred, otherwise set a new one
+                 if not error_message:
+                      error_message = "Evaluation failed: No episodes completed successfully."
+                 avg_eval_reward = None # Ensure it's None
 
     except Exception as e:
-        logging.error(f"Error during training/evaluation in Iteration {iteration+1}: {e}")
+        # General catch-all for errors *outside* the specific training/eval logic (e.g., env creation)
+        logging.error(f"Critical error during Iteration {iteration+1} setup or execution: {e}")
         logging.error(traceback.format_exc())
-        error_message = f"Error during training/evaluation: {e}\nTraceback:\n{traceback.format_exc()}"
+        # Set error message if not already set by inner try-except blocks
+        if not error_message:
+            error_message = f"Critical Iteration Error: {e}\nTraceback:\n{traceback.format_exc()}"
         # Ensure rewards are None if error occurred before they were calculated
         avg_eval_reward = avg_eval_reward if 'avg_eval_reward' in locals() and avg_eval_reward is not None else None
         final_train_reward = final_train_reward if 'final_train_reward' in locals() and final_train_reward is not None else None
 
+    finally:
+        # Ensure environment is closed even if errors occurred
+        if env is not None:
+             try:
+                 logging.info(f"Closing environment for Iteration {iteration+1}")
+                 env.close()
+             except Exception as close_e:
+                 logging.warning(f"Error closing environment: {close_e}")
 
+    # Return results including the specific error message
     return avg_eval_reward, final_train_reward, error_message, model_save_path
 
 
@@ -555,8 +737,27 @@ def main(cfg: DictConfig):
         logging.error(f"Invalid llm_provider specified in config: '{llm_provider}'. Use 'openai' or 'groq'.")
         return
 
-    # Setup prompt paths
-    prompt_base_path = os.path.abspath("/home/ken2/PCD/utils/prompts")
+    # Setup prompt paths using Hydra's CWD interpolation (relative to where script is run)
+    # Assumes prompts are in 'utils/prompts' relative to the project root where you run the script.
+    # Accessing Hydra's CWD requires it to be passed or accessed differently.
+    # A simpler approach is relative to the script file itself, assuming standard structure.
+    # However, using relative paths directly in the config is often cleaner.
+
+    # Let's assume paths are defined relative to project root in config (cfg.paths.prompt_dir)
+    try:
+        prompt_base_path = Path(cfg.paths.prompt_dir).resolve()
+        logging.info(f"Resolved prompt base path: {prompt_base_path}")
+    except AttributeError:
+        logging.error("Config missing 'paths.prompt_dir'. Please define the relative path to the prompts directory (e.g., 'utils/prompts') in your config.")
+        # Fallback using __file__ (less reliable if structure changes)
+        script_dir = Path(__file__).parent.resolve()
+        prompt_base_path = (script_dir / "../utils/prompts").resolve()
+        logging.warning(f"Falling back to prompt path relative to script: {prompt_base_path}")
+    except Exception as e:
+        logging.error(f"Error resolving prompt path: {e}. Using fallback.")
+        script_dir = Path(__file__).parent.resolve()
+        prompt_base_path = (script_dir / "../utils/prompts").resolve()
+
     system_prompt_path = os.path.join(prompt_base_path, "system_prompt.txt")
     user_prompt_path = os.path.join(prompt_base_path, "user_prompt.txt")
     code_tip_path = os.path.join(prompt_base_path, "code_output_tip.txt")
@@ -583,207 +784,198 @@ def main(cfg: DictConfig):
         conversation_text = ""
         user_prompt_for_llm = ""
         llm_attempts = 0
-        max_llm_attempts = 10
+        max_llm_attempts = 3 # Reduce retries for faster failure if needed
 
         while not reward_function_code and llm_attempts < max_llm_attempts:
              llm_attempts += 1
              logging.info(f"{iteration_str}: LLM Attempt {llm_attempts}/{max_llm_attempts}")
+             feedback_for_llm = current_feedback_content # Use feedback from previous iteration
 
-             # Construct feedback for LLM, including previous code if available
-             feedback_for_llm = current_feedback_content
-             # The previous code is now added within the feedback string generation logic below
-             # No need to add it separately here unless the structure changes
-
-             # Pass the llm_provider and config
+             # Call get_llm_response (already updated with correct prompt logic)
              reward_function_code, conversation_text, user_prompt_for_llm = get_llm_response(
-                 llm_provider=llm_provider, # Pass the selected provider
-                 model=cfg.llm.model, # Access model from the llm section
-                 system_prompt_path=system_prompt_path,
-                 user_prompt_path=user_prompt_path,
-                 code_tip_path=code_tip_path,
-                 cfg=cfg, # Pass the full config
-                 feedback_content=feedback_for_llm, # Pass the constructed feedback
-                 previous_reward_code=previous_reward_code # Pass code separately if needed by template
+                 llm_provider=llm_provider, model=cfg.llm.model,
+                 system_prompt_path=system_prompt_path, user_prompt_path=user_prompt_path,
+                 code_tip_path=code_tip_path, cfg=cfg,
+                 feedback_content=feedback_for_llm,
+                 previous_reward_code=previous_reward_code
              )
 
-             # Check for generic API error message
+             # Check for API errors
              if f"Error calling {llm_provider} API" in conversation_text:
                   logging.error(f"{iteration_str}: LLM API call failed. Aborting iteration.")
-                  # Log failure details more concisely
+                  # Log failure details concisely...
                   with open(conversation_file, "a", encoding="utf-8") as conv_file:
-                        conv_file.write(f"## {iteration_str}: Failed - {llm_provider.upper()} API Error\n")
-                        conv_file.write(f"**Error:** `{conversation_text}`\n")
-                        conv_file.write(f"**Attempted Prompt:**\n```\n{user_prompt_for_llm}\n```\n---\n\n")
+                       conv_file.write(f"## {iteration_str}: Failed - {llm_provider.upper()} API Error\n**Error:** `{conversation_text}`\n**Attempted Prompt:**\n```\n{user_prompt_for_llm}\n```\n---\n\n")
+                  current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + f"\n**Status:** Failed - {llm_provider.upper()} API Error.\n**Error:** {conversation_text}\nPlease try again."
                         all_results_summary.append(f"Iter {i+1}: Failed - {llm_provider.upper()} API Error")
-                  # Ensure reward_function_code remains empty to trigger skip logic below
-                  reward_function_code = ""
-                  break # Exit the LLM attempt loop for this iteration
+                  reward_function_code = "" # Ensure skip
+                  break # Exit attempt loop
 
+             # Check for empty/invalid code extraction
              elif not reward_function_code:
                   logging.warning(f"{iteration_str}: Could not extract valid Python code from LLM response (Attempt {llm_attempts}).")
                   if llm_attempts < max_llm_attempts:
                        logging.info("Retrying LLM call.")
-                       # Modify feedback slightly for retry
-                       # Make sure this doesn't get added multiple times if retries happen across iterations
-                       retry_feedback = "\n\n[System Retry Feedback]: The previous response did not contain a valid Python code block. Please ensure the reward function code is clearly marked within ```python ... ``` tags and follows the required signature `def custom_reward_function(obs, action, done, env):`. Use only numpy and standard python.\n"
-                       if retry_feedback not in current_feedback_content:
+                       retry_feedback = "\n\n[System Retry Feedback]: Previous response lacked valid code. Ensure ```python ... ``` tags and correct signature `def custom_reward_function(obs, action, done, env):`.\n"
+                       if retry_feedback not in current_feedback_content: # Avoid duplicate messages
                             current_feedback_content += retry_feedback
-                       time.sleep(2) # Small delay before retry
+                       time.sleep(2)
                   else:
                        logging.error(f"{iteration_str}: Failed to get valid reward code from LLM after {max_llm_attempts} attempts.")
-                       # Log failure details more concisely
+                       # Log failure details...
                        with open(conversation_file, "a", encoding="utf-8") as conv_file:
-                            conv_file.write(f"## {iteration_str}: Failed - No Valid Code from LLM\n")
-                            conv_file.write(f"**Final LLM Response:**\n```\n{conversation_text}\n```\n\n")
-                            conv_file.write(f"**Attempted Prompt:**\n```\n{user_prompt_for_llm}\n```\n---\n\n")
+                           conv_file.write(f"## {iteration_str}: Failed - No Valid Code from LLM\n**Final LLM Response:**\n```\n{conversation_text}\n```\n**Attempted Prompt:**\n```\n{user_prompt_for_llm}\n```\n---\n\n")
+                       current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + f"\n**Status:** Failed - No valid code after {max_llm_attempts} attempts.\n**Last LLM Response:**\n{conversation_text}\nPlease try again."
                        all_results_summary.append(f"Iter {i+1}: Failed - No valid code from LLM")
-                       # Ensure reward_function_code remains empty to trigger skip logic below
-                       reward_function_code = ""
-                       break # Exit LLM attempt loop
+                       reward_function_code = "" # Ensure skip
+                       break # Exit attempt loop
              else:
                   logging.info(f"{iteration_str}: Successfully generated and extracted reward code.")
-                  # Break the LLM attempt loop if code is found
-                  break
+                  break # Exit attempt loop
 
-        # --- After LLM attempt loop --- #
-
-        # Check if we failed to get code after all attempts
+        # --- Check if LLM attempts failed ---
         if not reward_function_code:
              logging.warning(f"{iteration_str}: Skipping Training/Evaluation due to failure in LLM response generation.")
-             # Prepare feedback for the *next* iteration's LLM call
-             # This feedback was already prepared during the retry logic or initial failure logging
-             # We just need to ensure `current_feedback_content` reflects the failure state
-             current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + (
-                  f"\n**Status:** Failed to generate usable code in the previous attempt after {llm_attempts} tries.\n"
-                  f"**Last LLM Response:**\n{conversation_text}\n\n"
-                  "Please try again, carefully following the instructions and ensuring the code is correctly formatted with the signature `def custom_reward_function(obs, action, done, env):`.\n"
-             )
-             # No valid code from this iteration to become the 'previous' code
-             # Keep the existing `previous_reward_code` for the next iteration's context
-             # Make sure summary reflects failure reason
-             if f"Iter {i+1}: Failed - No valid code from LLM" not in all_results_summary and f"Iter {i+1}: Failed - {llm_provider.upper()} API Error" not in all_results_summary:
-                 # Summarize specific failure type if possible
-                 failure_reason = f"Failed - {llm_provider.upper()} API Error" if f"Iter {i+1}: Failed - {llm_provider.upper()} API Error" in all_results_summary else "Failed - LLM Code Gen"
-                 all_results_summary.append(f"Iter {i+1}: {failure_reason}")
+             # current_feedback_content is already set from the failure logic above
+             # previous_reward_code remains unchanged
              continue # Skip to the next iteration
 
-
-        # --- Code generated, proceed with saving and training --- #
+        # --- Save generated code ---
         logging.info(f"{iteration_str}: Saving generated reward function to: {reward_py_path}")
         try:
             with open(reward_py_path, "w", encoding="utf-8") as f:
-                f.write("import numpy as np\n") # Ensure numpy is imported
-                # Add other potential common imports if needed by LLM code
-                # f.write("import math\n")
-                f.write(reward_function_code)
-            # Update previous_reward_code *only* if saving was successful and code is valid
-            # This is the code that will be included in the *next* iteration's feedback prompt
-            previous_reward_code = reward_function_code
+                f.write("import numpy as np\n")
+                # Make sure generated code doesn't have duplicate imports if LLM adds them
+                cleaned_code = re.sub(r"^\s*import\s+numpy\s+as\s+np\s*\n?", "", reward_function_code, flags=re.MULTILINE)
+                f.write(cleaned_code)
+            # This generated code becomes the context for the *next* iteration's feedback
+            previous_reward_code = cleaned_code
         except IOError as e:
              logging.error(f"{iteration_str}: Failed to write reward function file: {e}. Skipping training/evaluation.")
-             # Log failure details concisely
+             # Log failure...
              with open(conversation_file, "a", encoding="utf-8") as conv_file:
-                  conv_file.write(f"## {iteration_str}: Failed - Cannot Save Code\n")
-                  conv_file.write(f"**Error:** `{str(e)}`\n")
-                  conv_file.write(f"**Generated Code (Unsaved):**\n```python\n{reward_function_code}\n```\n---\n\n")
-             # Prepare feedback for the *next* iteration's LLM call OUTSIDE the with block
-             # Explicitly closing parenthesis after all strings are concatenated.
-             current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + (
-                 f"\n**Status:** Internal error: Failed to save the previously generated code.\n"
-                 f"**Error:** {e}\n"
-                 "Please regenerate the reward function."
-             )
-             # Keep the existing `previous_reward_code` as the generation failed at saving stage
+                  conv_file.write(f"## {iteration_str}: Failed - Cannot Save Code\n**Error:** `{str(e)}`\n**Generated Code (Unsaved):**\n```python\n{reward_function_code}\n```\n---\n\n")
+             current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + f"\n**Status:** Internal error: Failed to save the previously generated code.\n**Error:** {e}\nPlease regenerate the reward function."
+             # previous_reward_code remains unchanged
              all_results_summary.append(f"Iter {i+1}: Failed - Cannot save code")
              continue # Skip to next iteration
 
+        # --- Train and Evaluate (uses the updated train_and_evaluate function) ---
         logging.info(f"{iteration_str}: Starting training and evaluation...")
         avg_eval_reward, final_train_reward, error_message, saved_model_path = train_and_evaluate(
-            cfg, # Pass cfg object
-            reward_py_path, # Path to reward function
-            tb_log_dir_iter, # Tensorboard log dir for this iteration
-            current_run_models_dir, # Pass the run-specific *models* directory for saving
-            i # Iteration number
+            cfg, reward_py_path, tb_log_dir_iter, current_run_models_dir, i
         )
 
-        # Precompute evaluation and training reward strings
+        # --- Process results and generate feedback for NEXT iteration ---
         eval_reward_str = f"{avg_eval_reward:.2f}" if avg_eval_reward is not None else "N/A"
         train_reward_str = f"{final_train_reward:.2f}" if final_train_reward is not None else "N/A"
+        status = "Success" # Default status
 
-        if avg_eval_reward is None:
-             status = "Partial Success - Evaluation Failed"
-             logging.warning(f"{iteration_str}: Evaluation did not complete successfully (avg_eval_reward is None).")
+        if error_message:
+            # Prioritize specific error messages
+            if "returned non-numeric value" in error_message:
+                 status = "Failed - Invalid Reward Type"
              current_status_message = (
                  f"**Status:** {status}\n"
-                 f"**Training Result:** Final Mean Training Reward (from TensorBoard `rollout/ep_rew_mean`): `{train_reward_str}`\n"
-                 f"**Evaluation Result:** Failed to get an average reward (likely no episodes completed).\n\n"
-                 "Review the reward function (below) for issues that might prevent episode completion during evaluation (e.g., infinite loops, unreachable goals)."
+                     f"**Error:** {error_message}\n\n"
+                     f"The reward function (below) returned an invalid (non-numeric) value during {'training' if 'Training failed' in error_message else 'evaluation'}. "
+                     "Please correct the function to ensure it always returns a single float or integer."
+                 )
+            elif "Training failed" in error_message or "Evaluation failed" in error_message or "Iteration Error" in error_message:
+                 status = "Failed - Training/Evaluation Error"
+                 current_status_message = (
+                     f"**Status:** {status}\n"
+                     f"**Error:** {error_message}\n\n"
+                     "An error occurred during training or evaluation. Review the error message and the reward function (below) for potential issues."
+                 )
+            else: # General error
+                 status = "Failed - Unknown Error"
+                 current_status_message = (
+                     f"**Status:** {status}\n"
+                     f"**Error Details:**\n```\n{error_message}\n```\n\n"
+                     "An unexpected error occurred. Please review the reward function (below)."
+                 )
+            logging.error(f"{iteration_str}: {status}. Error: {error_message}")
+        elif avg_eval_reward is None and final_train_reward is None:
+             status = "Failed - No Results"
+             current_status_message = (
+                 f"**Status:** {status}\n"
+                 f"**Reason:** Could not obtain evaluation reward or final training reward (check logs for errors during TB reading or evaluation episode failures).\n\n"
+                 "Review the reward function (below) and the simulation behavior."
              )
+             logging.warning(f"{iteration_str}: {status}. Check logs for TB/eval issues.")
+        elif avg_eval_reward is None:
+             status = "Partial Success - Eval Failed/Inconclusive"
+             current_status_message = (
+                 f"**Status:** {status}\n"
+                 f"**Training Result:** Final Mean Training Reward (TB): `{train_reward_str}`\n"
+                 f"**Evaluation Result:** Failed or no episodes completed successfully.\n\n"
+                 "Training progressed, but evaluation failed. Review reward function (below) for issues causing evaluation failures (e.g., instability, unreachable goals)."
+             )
+             logging.warning(f"{iteration_str}: {status}. Eval reward N/A.")
         else:
              status = "Success"
-             logging.info(f"{iteration_str}: Training/Evaluation successful.")
              current_status_message = (
                  f"**Status:** {status}\n"
                  f"**Results:**\n"
                  f"- Average Evaluation Reward: `{eval_reward_str}`\n"
-                 f"- Final Mean Training Reward (TensorBoard `rollout/ep_rew_mean`): `{train_reward_str}`\n\n"
-                 f"Based on these results and the task goal ('{cfg.env.task}'), analyze the reward function code (below) and suggest improvements."
+                 f"- Final Mean Training Reward (TB): `{train_reward_str}`\n\n"
+                 f"Based on these results and the task goal ('{cfg.env.task}'), analyze the reward function code (below) and suggest improvements for the next iteration."
              )
+             logging.info(f"{iteration_str}: {status}. Eval: {eval_reward_str}, Train: {train_reward_str}")
 
+        # Construct the full feedback content for the *next* LLM call
+        # Use the `previous_reward_code` which holds the code from *this* iteration
         current_feedback_content = FEEDBACK_ANALYSIS_PROMPT + \
                                    f"\n{current_status_message}" + \
-                                   f"\n\n**Previous Reward Function Code:**\n```python\n{previous_reward_code}\n```"
+                                   f"\n\n**Previous Reward Function Code (Iteration {i+1}):**\n```python\n{previous_reward_code}\n```" # Use the code that was just run
 
+        # --- Log Iteration Summary ---
         logging.info(f"{iteration_str}: Logging results to {conversation_file}")
         with open(conversation_file, "a", encoding="utf-8") as conv_file:
              conv_file.write(f"## {iteration_str}\n\n")
              conv_file.write(f"**Status:** {status}\n\n")
-             conv_file.write(
-                 f"**User Prompt to LLM (leading to this iteration's code):**\n"
-                 f"*Note: Contains feedback from the iteration before this one.*\n```\n{user_prompt_for_llm}\n```\n\n"
-             )
+             # Log the prompt that *led* to this iteration's code
+             conv_file.write(f"**User Prompt to LLM:**\n*Note: Contains feedback from Iteration {i}*\n```\n{user_prompt_for_llm}\n```\n\n")
+             # Log the raw LLM response
              conv_file.write(f"**LLM Response:**\n```\n{conversation_text}\n```\n\n")
-             conv_file.write(
-                 f"**Generated Reward Code (saved to {os.path.basename(reward_py_path)}):**\n"
-                 f"```python\n{reward_function_code}\n```\n\n"
-             )
+             # Log the *cleaned* code that was actually saved and run
+             run_code_for_log = previous_reward_code if status != "Failed - Cannot Save Code" else reward_function_code # Show unsaved if saving failed
+             conv_file.write(f"**Generated/Executed Reward Code (saved as {os.path.basename(reward_py_path)}):**\n```python\n{run_code_for_log}\n```\n\n")
              conv_file.write("**Training & Evaluation Results:**\n")
-             # Use relative paths for logging within the run directory
              relative_tb_path = os.path.relpath(tb_log_dir_iter, current_run_results_dir)
-             conv_file.write(f"- TensorBoard Log Directory: `{relative_tb_path}`\n")
+             conv_file.write(f"- TensorBoard Log: `{relative_tb_path}`\n")
              if saved_model_path:
-                 # Model path is now relative to the base models dir, log the run-specific model path
-                 # Path relative to workspace root: models/env_name/timestamp/model_iter_N.zip
-                 workspace_rel_model_path = os.path.relpath(saved_model_path, os.getcwd()) # Or adjust base path if needed
+                 workspace_rel_model_path = os.path.relpath(saved_model_path, os.getcwd())
                  conv_file.write(f"- Saved Model: `{workspace_rel_model_path}`\n")
-             else:
-                 conv_file.write("- Saved Model: Failed or Skipped\n")
-             conv_file.write(f"- Average Evaluation Reward: `{eval_reward_str}`\n")
-             conv_file.write(f"- Final Mean Training Reward (TensorBoard `rollout/ep_rew_mean`): `{train_reward_str}`\n")
+             else: conv_file.write("- Saved Model: Failed or Skipped\n")
+             conv_file.write(f"- Avg Eval Reward: `{eval_reward_str}`\n")
+             conv_file.write(f"- Final Train Reward (TB): `{train_reward_str}`\n")
              if error_message:
-                 conv_file.write("- Error Encountered: Yes (See Status/Feedback)\n")
+                 # Log concise error here, full details are in the feedback section
+                 concise_error = error_message.split('\\n')[0] # Get first line
+                 conv_file.write(f"- Error Encountered: Yes (`{concise_error}`)\n")
              conv_file.write("\n")
-             conv_file.write(
-                 f"**Feedback Content Generated for Next Iteration:**\n```\n{current_feedback_content}\n```\n\n"
-             )
+             # Log the feedback that will be used for the *next* iteration
+             conv_file.write(f"**Feedback Content Generated for Next Iteration ({i+2}):**\n```\n{current_feedback_content}\n```\n\n")
              conv_file.write("---\n\n")
 
+        # --- Update Summary ---
         eval_reward_summary = f"{avg_eval_reward:.2f}" if avg_eval_reward is not None else "N/A"
         train_reward_summary = f"{final_train_reward:.2f}" if final_train_reward is not None else "N/A"
-        summary = f"Iter {i+1}: Status='{status}', Eval Reward={eval_reward_summary}, Train Reward={train_reward_summary}, Model Saved='{bool(saved_model_path)}', Error='{bool(error_message)}'"
+        summary_error = "Yes" if error_message else "No"
+        summary_model = "Yes" if saved_model_path else "No"
+        summary = f"Iter {i+1}: Status='{status}', Eval={eval_reward_summary}, Train(TB)={train_reward_summary}, Model Saved={summary_model}, Error={summary_error}"
         all_results_summary.append(summary)
         logging.info(f"========== Finished {iteration_str} ==========\n")
 
     logging.info("Iterative reward function generation complete.")
     logging.info("Final Results Summary:")
-    if not all_results_summary:
-         logging.info("  No iterations completed fully.")
+    if not all_results_summary: logging.info("  No iterations completed fully.")
     else:
-         for result_line in all_results_summary:
-              logging.info(f"  {result_line}")
-    logging.info(f"Detailed logs and artifacts for run {run_timestamp} (env: {env_name_str}) saved in: {current_run_results_dir}")
+         for result_line in all_results_summary: logging.info(f"  {result_line}")
+    logging.info(f"Detailed logs for run {run_timestamp} (env: {env_name_str}) saved in: {current_run_results_dir}")
     logging.info(f"Models for run {run_timestamp} (env: {env_name_str}) saved in: {current_run_models_dir}")
-
 
 if __name__ == "__main__" :
              main()

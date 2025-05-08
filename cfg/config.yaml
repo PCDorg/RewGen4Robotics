@@ -38,7 +38,7 @@ final_training: ${experiment.final_training} # Use final_training from experimen
 # Training parameters
 training:
   algorithm: "SAC"  # RL algorithm to use
-  total_timesteps: 100000  # Training timesteps for each iteration
+  total_timesteps: 3000000  # Training timesteps for each iteration
   eval_episodes: 5  # Number of evaluation episodes
   learning_rate: 0.0003
   buffer_size: 1000000
@@ -46,6 +46,13 @@ training:
   gamma: 0.99
   tau: 0.005
   ent_coef: auto
+  sac_params:
+    learning_rate: 0.0003
+    buffer_size: 1000000
+    learning_starts: 10000
+    batch_size: 256
+    tau: 0.005
+    gamma: 0.99
 
 # Environment parameters (This section seems empty or misplaced, remove if not used)
 # llm_provider: groq          # Can be 'openai' or 'groq' (Moved to llm section)
@@ -69,6 +76,24 @@ experiment:
 
 # Paths
 paths:
-  results_dir: "results"  # Base directory for all run results
+  results_dir: "outputs"  # Base directory for all run results
   model_dir: "models"    # Base directory for all saved models
 # tensorboard_dir: "tensorboard_logs" # Removed, will be relative to run results
+  prompt_dir: "utils/prompts" # Relative path to prompt files
+
+env:
+  env_name: "Go1MujocoCustom-v0"
+  task: "Walk forward"
+  task_description: "Train Go1 to walk forward tracking velocity."
+  ctrl_type: "torque"
+
+evaluation:
+  eval_episodes: 10 # Number of episodes for final evaluation
+
+# --- Path to the specific reward function file for offline training ---
+# REWARD FUNCTION PATH MUST BE PROVIDED VIA COMMAND LINE FOR train_offline.py
+# Example: python train_offline.py reward_function_path="path/to/your/reward_function.py"
+# reward_function_path: "/home/ken2/PCD/outputs/2025-05-05/18-00-18/results/Go1MujocoCustom-v0/2025-05-05_18-00-18/reward_function_0.py"
+
+# Optional: Add render flag if you want to watch during training
+render: True
