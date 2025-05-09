@@ -1,27 +1,40 @@
 def reward_function(self, x_velocity, observation, action):
-    # Extract the relevant components from observation
-    z_coordinate_torso = observation[0]  # Height of the torso
-    velocity_x = observation[8]  # Forward velocity
+    """
+    The walker is a two-dimensional figure with two legs, 
+    the goal is to coordinate both sets of feet, legs, and thighs 
+    to move in the forward (right) direction by applying torques 
+    on the six hinges connecting the six body parts.
 
-    # Reward for moving forward
-    forward_progress_reward = velocity_x
+    Parameters:
+    - x_velocity: the x-coordinate velocity of the Walker2d
+    - observation: the observation space of the Walker2d
+    - action: the action taken by the agent in the Walker2d environment
 
-    # Penalty for excessive torque (energy efficiency)
-    torque_penalty = 0.001 * np.sum(np.square(action))
+    Returns:
+    - a tuple containing the total reward and a dictionary of each individual reward component
+    """
+    forward_reward_weight = 1.0
+    velocity_reward_weight = 0.5
+    action_reward_weight = 0.1
+    forward_temperature = 1.0
+    velocity_temperature = 1.0
+    action_temperature = 1.0
 
-    # Reward for maintaining a reasonable torso height
-    optimal_height = 1.2
-    height_penalty_temperature = 1.0
-    height_penalty = np.exp(-height_penalty_temperature * np.abs(z_coordinate_torso - optimal_height))
+    # compute forward reward based on x_velocity
+    forward_reward = np.tanh(forward_temperature * x_velocity)
+    velocity_reward = np.tanh(velocity_temperature * np.abs(observation[8:10]).mean())
 
-    # Total reward
-    total_reward = forward_progress_reward + height_penalty - torque_penalty
+    # compute action reward based on action taken
+    action_reward = -np.tanh(action_temperature * np.abs(action).mean())
 
-    # Reward components for debugging/information purposes
+    total_reward = (forward_reward_weight * forward_reward +
+                velocity_reward_weight * velocity_reward +
+                action_reward_weight * action_reward)
+
     reward_info = {
-        'forward_progress_reward': forward_progress_reward,
-        'height_penalty': height_penalty,
-        'torque_penalty': torque_penalty
+        "forward_reward": forward_reward * forward_reward_weight,
+        "velocity_reward": total_reward * velocity_reward_weight,
+        "action_reward": total_reward * action_reward_weight
     }
 
     return total_reward, reward_info

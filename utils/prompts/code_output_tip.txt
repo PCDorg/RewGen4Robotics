@@ -7,12 +7,43 @@ Some helpful tips for writing the reward function code:
     (1) dont use torch library use instead numpy !!
     (2) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable
     (3) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as np.array
-    (4) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
-    (5) Use only attributes specified in the environment!
-    (6) Respect the reward_function signature and dont change input variables.
+   
+1. The observation space is a Box(-Inf, Inf, (17,), float64) with the following structure:
+   - Indices 0-7: Joint angles (torso, thigh, leg, foot for both sides)
+   - Indices 8-9: Linear velocities of the torso
+   - Indices 10-16: Angular velocities of all joints
+   - The x-coordinate is excluded from observations but available using x_velocity parameter
+
+2. The action space is Box(-1, 1, (6,), float32) representing torques for:
+   - Right thigh, leg, and foot joints
+   - Left thigh, leg, and foot joints
+
+3. Your reward function must:
+   - Handle numpy arrays correctly
+   - Not make assumptions about observation space structure
+   - Be compatible with the reward function signature: {task_reward_signature_string}
+
+4. Common reward components to consider:
+   - Forward velocity reward (using x_velocity parameter)
+
+5. DO NOT:
+   - Access indices beyond the observation space bounds
+   - Assume observation space structure beyond what's documented
+   - Use undefined attributes
+   - Make up new environment attributes
+
+6. Tips for better reward function:
+   - Use x_velocity to encourage forward movement
+
+Remember to:
+1. Use numpy operations for array handling
+2. Keep all variables on the same device as input tensors
+3. Validate array indices before use
+4. Consider both positive and negative rewards for balance
+5. Scale different reward components appropriately"
 
 Helpful tip about observation :
-    - self._get_obs() return : a array of 17 components and a set of two values "x_position" and "z_distance_from_origin" 
+    - self._get_obs() return : a array of 17 components and a set of two values x_position and "z_distance_from_origin 
     Explanaition of output :
 
     | Num | Observation                                        | Type (Unit)              |
@@ -34,9 +65,10 @@ Helpful tip about observation :
     | 14  | angular velocity of the thigh hinge                | angular velocity (rad/s) |
     | 15  | angular velocity of the leg hinge                  | angular velocity (rad/s) |
     | 16  | angular velocity of the foot hinge                 | angular velocity (rad/s) |
-    | excluded | x-coordinate of the torso        
+    | excluded | x-coordinate of the torso      
+
     exemple output of the _get_obs function : (array([ 1.25058082e+00, -2.97289137e-03, -2.52310225e-03,  2.61270758e-03,
        -2.97618055e-03,  8.12776083e-04,  3.05123238e-03, -2.91539969e-03,
        -4.33196237e-03, -4.77280066e-03,  1.43559329e-03,  2.37136838e-03,
        -4.14854802e-03,  4.31438954e-03, -1.46865697e-03,  3.70031103e-03,
-        4.00085256e-03]), {'x_position': -0.0013976251957168151, 'z_distance_from_origin': 0.0005808233269632979})             
+        4.00085256e-03]), dict('x_position': -0.0013976251957168151, 'z_distance_from_origin': 0.0005808233269632979))             

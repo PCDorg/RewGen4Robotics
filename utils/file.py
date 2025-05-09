@@ -3,6 +3,8 @@ import ast
 import os
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from collections import defaultdict
+import importlib.util
+import logging
 
 def file_to_string(filename):
     with open(filename, 'r') as file:
@@ -25,18 +27,6 @@ def extract_code(response_cur):
                 code_string = response_cur if not code_string else code_string
                 return code_string
 
-# example
-gpt_completion = """
-Here is your Python code:
-
-```python
-def hello(self,text,text1):
-    print("Hello, world!")```"""
-code_text = extract_code(gpt_completion)
-#print(code_text)
-
-
-
 def get_function_signature(code_string):
     # Parse the code string into an AST
     module = ast.parse(code_string)
@@ -58,6 +48,7 @@ def get_function_signature(code_string):
     for arg in function_def.args.args:
         input_lst.append(arg.arg)
     return signature, input_lst
+
 def get_function_signature2(code_string):
     module = ast.parse(code_string)
     function_defs = []
@@ -79,20 +70,22 @@ def get_function_signature2(code_string):
     
     # Handle self parameter for methods
     if params and params[0] == "self":
-        signature = f"{function_def.name}(self"
+        signature = f"{function_def.name}(self,"
         params = params[1:]  # exclude self from parameter list
     else:
         signature = f"{function_def.name}("
 
     # Add other parameters
     if params:
-        signature += ", " + ", ".join(params)
+        signature += ", ".join(params)
     signature += ")"
 
     return signature, params
-
-
-#print(Walker2dEnv().__dict__)
+#tester la fonction get_function_signature2
+code = """def reward_function( x_velocity, observation, action):
+    return 0.0
+"""
+print(get_function_signature2(code))
 
 
 def find_files_with_substring(directory, substring):
@@ -105,7 +98,17 @@ def find_files_with_substring(directory, substring):
 
 def load_tensorboard_logs(path):
     data = defaultdict(list)
-    event_acc = EventAccumulator(path)
+    
+    # Get the first directory in the path
+    try:
+        first_dir = next(os.scandir(path))
+        if first_dir.is_dir():
+            event_path = first_dir.path
+    except Exception as e:
+        logging.error(f"Path passed to load_tensorboard_logs contains no valid tensorboard logs: {e}")
+        event_path = path
+        
+    event_acc = EventAccumulator(event_path)
     event_acc.Reload()  # Load all data written so far
 
     for tag in event_acc.Tags()["scalars"]:
@@ -114,8 +117,6 @@ def load_tensorboard_logs(path):
             data[tag].append(event.value)
     
     return data
-
-import importlib.util
 
 def import_class_from_file(file_path, function_name):
     spec = importlib.util.spec_from_file_location("module.name", file_path)
